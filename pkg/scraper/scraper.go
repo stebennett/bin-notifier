@@ -3,7 +3,6 @@ package scraper
 import (
 	"context"
 	"errors"
-	"fmt"
 	"log"
 	"os"
 	"time"
@@ -25,11 +24,11 @@ func NewBinTimesScraper() *BinTimesScraper {
 	return &BinTimesScraper{}
 }
 
-func (s BinTimesScraper) ScrapeBinTimes(postCode string, address string) (BinTimes, error) {
+func (s BinTimesScraper) ScrapeBinTimes(postCode string, addressCode string) (BinTimes, error) {
 	if len(postCode) == 0 {
 		return BinTimes{}, errors.New("no postcode specified")
 	}
-	if len(address) == 0 {
+	if len(addressCode) == 0 {
 		return BinTimes{}, errors.New("no address specified")
 	}
 
@@ -60,21 +59,41 @@ func (s BinTimesScraper) ScrapeBinTimes(postCode string, address string) (BinTim
 	defer cancel()
 
 	log.Printf("running task")
-	//var binTimes BinTimes
+	var foodTimes string
+	var blueTimes string
+	var greenTimes string
+	var brownTimes string
+
 	err = chromedp.Run(taskCtx,
 		chromedp.Navigate("https://selfservice.mybfc.bracknell-forest.gov.uk/w/webpage/waste-collection-days"),
 
 		chromedp.WaitVisible(`//a[text()="Accept all cookies"]`),
 		chromedp.Click(`//a[text()="Accept all cookies"]`),
+		chromedp.WaitNotVisible(`//a[text()="Accept all cookies"]`),
 
-		chromedp.WaitVisible(`input[placeholder="Postcode or street name"]`),
-		chromedp.SendKeys(`input[placeholder="Postcode or street name"]`, postCode),
-		chromedp.SendKeys(`input[placeholder="Postcode or street name"]`, kb.Enter),
+		chromedp.SendKeys(`input[type="text"]`, postCode),
+		chromedp.Sleep(2*time.Second),
+
+		chromedp.SendKeys(`input[type="text"]`, kb.Enter),
+		chromedp.Sleep(2*time.Second),
+
 		chromedp.WaitVisible(`//select`),
-		chromedp.Click(fmt.Sprintf(`//select/option[text()="%s"]`, address)),
+		chromedp.SetValue(`//select`, addressCode),
+		chromedp.Sleep(2*time.Second),
+		chromedp.EvaluateAsDevTools(`document.querySelector("select").dispatchEvent(new Event("change"))`, nil),
 
-		chromedp.WaitVisible(`div[class="collectionHeading"]`),
+		chromedp.WaitVisible(`//h2[@class="collectionHeading"]`),
+
+		chromedp.Text(`//table[@class="bin-table"]/tr[2]/table/table[1]/tr/td[2]`, &foodTimes, chromedp.NodeVisible, chromedp.BySearch),
+		chromedp.Text(`//table[@class="bin-table"]/tr[2]/table/table[2]/tr/td[2]`, &blueTimes, chromedp.NodeVisible, chromedp.BySearch),
+		chromedp.Text(`//table[@class="bin-table"]/tr[2]/table/table[3]/tr/td[2]`, &brownTimes, chromedp.NodeVisible, chromedp.BySearch),
+		chromedp.Text(`//table[@class="bin-table"]/tr[2]/table/table[4]/tr/td[2]`, &greenTimes, chromedp.NodeVisible, chromedp.BySearch),
 	)
+
+	log.Printf("food times: %s", foodTimes)
+	log.Printf("blue times: %s", blueTimes)
+	log.Printf("brown times: %s", brownTimes)
+	log.Printf("green times: %s", greenTimes)
 
 	if err != nil {
 		return BinTimes{}, err

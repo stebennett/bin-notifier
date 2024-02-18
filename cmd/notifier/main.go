@@ -3,13 +3,20 @@ package main
 import (
 	"log"
 
+	"github.com/stebennett/bin-notifier/pkg/config"
 	"github.com/stebennett/bin-notifier/pkg/scraper"
 )
 
 func main() {
-	scr := scraper.NewBinTimesScraper()
+	config, err := config.GetConfig()
+	if err != nil {
+		log.Fatal(err)
+	}
 
-	binTimes, err := scr.ScrapeBinTimes("RG12 8FN", "6 CUCKOO LANE, BRACKNELL, RG12 8FN")
+	log.Printf("Scraping bin times for %s - %s", config.AddressCode, config.PostCode)
+
+	scr := scraper.NewBinTimesScraper()
+	binTimes, err := scr.ScrapeBinTimes(config.PostCode, config.AddressCode)
 
 	if err != nil {
 		log.Fatal(err)
