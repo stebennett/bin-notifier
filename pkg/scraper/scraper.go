@@ -16,13 +16,6 @@ import (
 	regexputil "github.com/stebennett/bin-notifier/pkg/regexp"
 )
 
-type BinTimes struct {
-	Green time.Time
-	Blue  time.Time
-	Brown time.Time
-	Food  time.Time
-}
-
 type BinTime struct {
 	Type           string
 	CollectionTime time.Time
@@ -34,12 +27,12 @@ func NewBinTimesScraper() *BinTimesScraper {
 	return &BinTimesScraper{}
 }
 
-func (s BinTimesScraper) ScrapeBinTimes(postCode string, addressCode string) (BinTimes, error) {
+func (s BinTimesScraper) ScrapeBinTimes(postCode string, addressCode string) ([]BinTime, error) {
 	if len(postCode) == 0 {
-		return BinTimes{}, errors.New("no postcode specified")
+		return []BinTime{}, errors.New("no postcode specified")
 	}
 	if len(addressCode) == 0 {
-		return BinTimes{}, errors.New("no address specified")
+		return []BinTime{}, errors.New("no address specified")
 	}
 
 	log.Printf("creating temp user data dir")
@@ -53,7 +46,7 @@ func (s BinTimesScraper) ScrapeBinTimes(postCode string, addressCode string) (Bi
 	opts := append(chromedp.DefaultExecAllocatorOptions[:],
 		chromedp.DisableGPU,
 		chromedp.UserDataDir(dir),
-		chromedp.Flag("headless", false),
+		chromedp.Flag("headless", true),
 	)
 
 	log.Printf("creating chrome context")
@@ -61,18 +54,15 @@ func (s BinTimesScraper) ScrapeBinTimes(postCode string, addressCode string) (Bi
 	defer cancel()
 
 	log.Printf("creating logger")
-	taskCtx, cancel := chromedp.NewContext(allocCtx, chromedp.WithDebugf(log.Printf))
+	taskCtx, cancel := chromedp.NewContext(allocCtx, chromedp.WithLogf(log.Printf))
 	defer cancel()
 
 	log.Printf("creating timeout")
-	taskCtx, cancel = context.WithTimeout(taskCtx, 120*time.Second)
+	taskCtx, cancel = context.WithTimeout(taskCtx, 60*time.Second)
 	defer cancel()
 
 	log.Printf("running task")
-	var foodTimes string
-	var blueTimes string
-	var greenTimes string
-	var brownTimes string
+	collectionTimes := make([]string, 4)
 
 	err = chromedp.Run(taskCtx,
 		chromedp.Navigate("https://selfservice.mybfc.bracknell-forest.gov.uk/w/webpage/waste-collection-days"),
@@ -94,17 +84,25 @@ func (s BinTimesScraper) ScrapeBinTimes(postCode string, addressCode string) (Bi
 
 		chromedp.WaitVisible(`//h2[@class="collectionHeading"]`),
 
-		chromedp.Text(`//table[@class="bin-table"]/tr[2]/table/table[1]/tr/td[2]`, &foodTimes, chromedp.NodeVisible, chromedp.BySearch),
-		chromedp.Text(`//table[@class="bin-table"]/tr[2]/table/table[2]/tr/td[2]`, &blueTimes, chromedp.NodeVisible, chromedp.BySearch),
-		chromedp.Text(`//table[@class="bin-table"]/tr[2]/table/table[3]/tr/td[2]`, &brownTimes, chromedp.NodeVisible, chromedp.BySearch),
-		chromedp.Text(`//table[@class="bin-table"]/tr[2]/table/table[4]/tr/td[2]`, &greenTimes, chromedp.NodeVisible, chromedp.BySearch),
+		chromedp.Text(`//table[@class="bin-table"]/tr[2]/table/table[1]/tr/td[2]`, &collectionTimes[0], chromedp.NodeVisible, chromedp.BySearch),
+		chromedp.Text(`//table[@class="bin-table"]/tr[2]/table/table[2]/tr/td[2]`, &collectionTimes[1], chromedp.NodeVisible, chromedp.BySearch),
+		chromedp.Text(`//table[@class="bin-table"]/tr[2]/table/table[3]/tr/td[2]`, &collectionTimes[2], chromedp.NodeVisible, chromedp.BySearch),
+		chromedp.Text(`//table[@class="bin-table"]/tr[2]/table/table[4]/tr/td[2]`, &collectionTimes[3], chromedp.NodeVisible, chromedp.BySearch),
 	)
 
 	if err != nil {
-		return BinTimes{}, err
+		return []BinTime{}, err
 	}
 
-	return BinTimes{}, errors.New("failed to get bin times")
+	binTimes := make([]BinTime, len(collectionTimes))
+	for i, t := range collectionTimes {
+		binTimes[i], err = parseNextCollectionTime(t)
+		if err != nil {
+			return binTimes, err
+		}
+	}
+
+	return binTimes, nil
 }
 
 func parseNextCollectionTime(times string) (BinTime, error) {
