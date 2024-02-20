@@ -5,10 +5,15 @@ import (
 	"errors"
 	"log"
 	"os"
+	"regexp"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/chromedp/chromedp"
 	"github.com/chromedp/chromedp/kb"
+	"github.com/stebennett/bin-notifier/pkg/dateutil"
+	regexputil "github.com/stebennett/bin-notifier/pkg/regexp"
 )
 
 type BinTimes struct {
@@ -16,6 +21,11 @@ type BinTimes struct {
 	Blue  time.Time
 	Brown time.Time
 	Food  time.Time
+}
+
+type BinTime struct {
+	Type           string
+	CollectionTime time.Time
 }
 
 type BinTimesScraper struct{}
@@ -90,14 +100,26 @@ func (s BinTimesScraper) ScrapeBinTimes(postCode string, addressCode string) (Bi
 		chromedp.Text(`//table[@class="bin-table"]/tr[2]/table/table[4]/tr/td[2]`, &greenTimes, chromedp.NodeVisible, chromedp.BySearch),
 	)
 
-	log.Printf("food times: %s", foodTimes)
-	log.Printf("blue times: %s", blueTimes)
-	log.Printf("brown times: %s", brownTimes)
-	log.Printf("green times: %s", greenTimes)
-
 	if err != nil {
 		return BinTimes{}, err
 	}
 
 	return BinTimes{}, errors.New("failed to get bin times")
+}
+
+func parseNextCollectionTime(times string) (BinTime, error) {
+	t := strings.Split(times, "\n")
+
+	exp := `Your next (?P<BinType>[a-z]+) collection is [A-Za-z]+ (?P<Date>\d+) (?P<Month>[A-Za-z]+) (?P<Year>\d{4})`
+	re := regexp.MustCompile(exp)
+
+	matches := regexputil.FindNamedMatches(re, t[0])
+	if len(matches) != 4 {
+		return BinTime{}, errors.New("failed to parse next collection time")
+	}
+
+	day, _ := strconv.Atoi(matches["Date"])
+	year, _ := strconv.Atoi(matches["Year"])
+
+	return BinTime{matches["BinType"], dateutil.AsTimeWithMonth(day, matches["Month"], year)}, nil
 }

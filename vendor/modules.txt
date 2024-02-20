@@ -58,6 +58,9 @@ github.com/chromedp/chromedp/kb
 # github.com/chromedp/sysutil v1.0.0
 ## explicit; go 1.15
 github.com/chromedp/sysutil
+# github.com/davecgh/go-spew v1.1.1
+## explicit
+github.com/davecgh/go-spew/spew
 # github.com/gobwas/httphead v0.1.0
 ## explicit; go 1.15
 github.com/gobwas/httphead
@@ -83,6 +86,15 @@ github.com/mailru/easyjson
 github.com/mailru/easyjson/buffer
 github.com/mailru/easyjson/jlexer
 github.com/mailru/easyjson/jwriter
+# github.com/pmezard/go-difflib v1.0.0
+## explicit
+github.com/pmezard/go-difflib/difflib
+# github.com/stretchr/testify v1.8.4
+## explicit; go 1.20
+github.com/stretchr/testify/assert
 # golang.org/x/sys v0.16.0
 ## explicit; go 1.18
 golang.org/x/sys/unix
+# gopkg.in/yaml.v3 v3.0.1
+## explicit
+gopkg.in/yaml.v3
