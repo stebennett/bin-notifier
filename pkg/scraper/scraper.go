@@ -46,7 +46,7 @@ func (s BinTimesScraper) ScrapeBinTimes(postCode string, addressCode string) ([]
 	opts := append(chromedp.DefaultExecAllocatorOptions[:],
 		chromedp.DisableGPU,
 		chromedp.UserDataDir(dir),
-		chromedp.Flag("headless", false),
+		chromedp.Flag("headless", true),
 	)
 
 	log.Printf("creating chrome context")
