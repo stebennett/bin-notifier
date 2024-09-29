@@ -46,7 +46,7 @@ func (s BinTimesScraper) ScrapeBinTimes(postCode string, addressCode string) ([]
 	opts := append(chromedp.DefaultExecAllocatorOptions[:],
 		chromedp.DisableGPU,
 		chromedp.UserDataDir(dir),
-		chromedp.Flag("headless", true),
+		chromedp.Flag("headless", false),
 	)
 
 	log.Printf("creating chrome context")
@@ -94,6 +94,8 @@ func (s BinTimesScraper) ScrapeBinTimes(postCode string, addressCode string) ([]
 		return []BinTime{}, err
 	}
 
+	log.Printf("bin times collected. parsing to extract.")
+
 	binTimes := make([]BinTime, len(collectionTimes))
 	for i, t := range collectionTimes {
 		binTimes[i], err = parseNextCollectionTime(t)
@@ -108,7 +110,7 @@ func (s BinTimesScraper) ScrapeBinTimes(postCode string, addressCode string) ([]
 func parseNextCollectionTime(times string) (BinTime, error) {
 	t := strings.Split(times, "\n")
 
-	exp := `Your next (?P<BinType>[a-z]+) collection is [A-Za-z]+ (?P<Date>\d+) (?P<Month>[A-Za-z]+) (?P<Year>\d{4})`
+	exp := `Your next (?P<BinType>[a-z\s]+) collection is [A-Za-z]+ (?P<Date>\d+) (?P<Month>[A-Za-z]+) (?P<Year>\d{4})`
 	re := regexp.MustCompile(exp)
 
 	matches := regexputil.FindNamedMatches(re, t[0])
