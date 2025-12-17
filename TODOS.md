@@ -38,16 +38,16 @@
 
 ---
 
-## Phase 3: Low Priority (Requires Refactoring)
+## Phase 3: Low Priority (Requires Refactoring) ✅
 
 ### 3.1 Create `pkg/clients/twilioclient_test.go`
-- [ ] Refactor `TwilioClient` to accept an interface for the underlying client
-- [ ] Test `SendSms()` dry-run mode returns nil without calling Twilio
-- [ ] Test `SendSms()` calls Twilio API with correct parameters (using mock)
+- [x] Refactor `TwilioClient` to accept an interface for the underlying client
+- [x] Test `SendSms()` dry-run mode returns nil without calling Twilio
+- [x] Test `SendSms()` calls Twilio API with correct parameters (using mock)
 
 ### 3.2 Improve testability of `cmd/notifier/main.go`
-- [ ] Extract main logic into a separate function with dependency injection
-- [ ] Create integration tests for the orchestration logic
+- [x] Extract main logic into a separate function with dependency injection
+- [x] Create integration tests for the orchestration logic
 
 ---
 
@@ -55,11 +55,11 @@
 
 | Package | Before | After Phase 1 | After Phase 2 | After Phase 3 |
 |---------|--------|---------------|---------------|---------------|
-| `pkg/dateutil` | 0% | **100%** ✅ | 100% | 100% |
-| `pkg/regexp` | 0% | **100%** ✅ | 100% | 100% |
-| `pkg/scraper` | 19% | **33%** ✅ | 33% | ~33% |
-| `pkg/config` | 0% | 0% | **33%** ✅ | ~33% |
-| `pkg/clients` | 0% | 0% | 0% | ~80% |
-| `cmd/notifier` | 0% | 0% | 0% | ~50% |
+| `pkg/dateutil` | 0% | **100%** ✅ | 100% | 100% ✅ |
+| `pkg/regexp` | 0% | **100%** ✅ | 100% | 100% ✅ |
+| `pkg/scraper` | 19% | **33%** ✅ | 33% | 33% ✅ |
+| `pkg/config` | 0% | 0% | **33%** ✅ | 33% ✅ |
+| `pkg/clients` | 0% | 0% | 0% | **~80%** ✅ |
+| `cmd/notifier` | 0% | 0% | 0% | **~50%** ✅ |
 
 Note: `pkg/config` coverage is 33% because `GetConfig()` reads from `os.Args` and would require refactoring for higher coverage.

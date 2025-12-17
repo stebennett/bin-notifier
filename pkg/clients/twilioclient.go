@@ -7,13 +7,29 @@ import (
 	twilioApi "github.com/twilio/twilio-go/rest/api/v2010"
 )
 
-type TwilioClient struct {
-	client *twilio.RestClient
+// MessageCreator is an interface for creating Twilio messages.
+// This allows for dependency injection and mocking in tests.
+type MessageCreator interface {
+	CreateMessage(params *twilioApi.CreateMessageParams) (*twilioApi.ApiV2010Message, error)
 }
 
+type TwilioClient struct {
+	api MessageCreator
+}
+
+// NewTwilioClient creates a new TwilioClient with the default Twilio REST client.
 func NewTwilioClient() *TwilioClient {
+	client := twilio.NewRestClient()
 	return &TwilioClient{
-		client: twilio.NewRestClient(),
+		api: client.Api,
+	}
+}
+
+// NewTwilioClientWithAPI creates a new TwilioClient with a custom MessageCreator.
+// This is useful for testing with a mock implementation.
+func NewTwilioClientWithAPI(api MessageCreator) *TwilioClient {
+	return &TwilioClient{
+		api: api,
 	}
 }
 
@@ -28,5 +44,5 @@ func (t TwilioClient) SendSms(from string, to string, body string, dryRun bool) 
 	params.SetFrom(from)
 	params.SetBody(body)
 
-	return t.client.Api.CreateMessage(params)
+	return t.api.CreateMessage(params)
 }
