@@ -13,7 +13,7 @@ A Go application that scrapes bin collection schedules from the Bracknell Forest
 
 ## Prerequisites
 
-- Go 1.20 or later
+- Go 1.25 or later
 - Google Chrome or Chromium (for headless scraping)
 - Twilio account with SMS capabilities
 
