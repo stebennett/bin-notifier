@@ -51,3 +51,65 @@ func TestParseNextCollectionTime(t *testing.T) {
 		})
 	}
 }
+
+func TestParseNextCollectionTime_Errors(t *testing.T) {
+	tests := []struct {
+		name  string
+		input string
+	}{
+		{
+			name:  "empty string",
+			input: "",
+		},
+		{
+			name:  "malformed input - no date",
+			input: "Your next food collection is Monday",
+		},
+		{
+			name:  "malformed input - wrong format",
+			input: "Next collection: food on 26/02/2024",
+		},
+		{
+			name:  "malformed input - missing bin type",
+			input: "Your next collection is Monday 26 February 2024",
+		},
+		{
+			name:  "malformed input - missing year",
+			input: "Your next food collection is Monday 26 February",
+		},
+		{
+			name:  "random text",
+			input: "This is not a valid collection time string",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			_, err := parseNextCollectionTime(test.input)
+			assert.Error(t, err)
+			assert.EqualError(t, err, "failed to parse next collection time")
+		})
+	}
+}
+
+func TestScrapeBinTimes_ValidationErrors(t *testing.T) {
+	scraper := NewBinTimesScraper()
+
+	t.Run("empty postcode returns error", func(t *testing.T) {
+		_, err := scraper.ScrapeBinTimes("", "123")
+		assert.Error(t, err)
+		assert.EqualError(t, err, "no postcode specified")
+	})
+
+	t.Run("empty address returns error", func(t *testing.T) {
+		_, err := scraper.ScrapeBinTimes("AB1 2CD", "")
+		assert.Error(t, err)
+		assert.EqualError(t, err, "no address specified")
+	})
+
+	t.Run("both empty returns postcode error first", func(t *testing.T) {
+		_, err := scraper.ScrapeBinTimes("", "")
+		assert.Error(t, err)
+		assert.EqualError(t, err, "no postcode specified")
+	})
+}
