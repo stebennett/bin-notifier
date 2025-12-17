@@ -21,7 +21,7 @@ require (
 	github.com/jessevdk/go-flags v1.5.0
 	github.com/josharian/intern v1.0.0 // indirect
 	github.com/mailru/easyjson v0.7.7 // indirect
-	github.com/stretchr/testify v1.8.4
+	github.com/stretchr/testify v1.11.1
 	github.com/twilio/twilio-go v1.15.1
 	golang.org/x/sys v0.16.0 // indirect
 )
