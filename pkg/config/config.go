@@ -11,13 +11,13 @@ var (
 )
 
 type Config struct {
-	PostCode             string `short:"p" long:"postcode" description:"The postcode to scrape bin times for" required:"true"`
-	AddressCode          string `short:"a" long:"addressCode" description:"The address to scrape bin times for" required:"true"`
-	RegularCollectionDay int    `short:"r" long:"regularcollectionday" description:"The regular collection day of the week" required:"true"`
-	FromNumber           string `short:"f" long:"fromnumber" required:"true" description:"The number to send the confirmation SMS from"`
-	ToNumber             string `short:"n" long:"tonumber" required:"true" description:"The number to send the confirmation SMS to"`
-	DryRun               bool   `short:"x" long:"dryrun" description:"Run everything, but don't do the booking and assume it succeeds"`
-	TodayDate            string `short:"d" long:"todaydate" description:"The date to use for today's date"`
+	PostCode             string `short:"p" long:"postcode" env:"BN_POSTCODE" description:"The postcode to scrape bin times for" required:"true"`
+	AddressCode          string `short:"a" long:"addressCode" env:"BN_ADDRESS_CODE" description:"The address to scrape bin times for" required:"true"`
+	RegularCollectionDay int    `short:"r" long:"regularcollectionday" env:"BN_REGULAR_COLLECTION_DAY" description:"The regular collection day of the week" required:"true"`
+	FromNumber           string `short:"f" long:"fromnumber" env:"BN_FROM_NUMBER" required:"true" description:"The number to send the confirmation SMS from"`
+	ToNumber             string `short:"n" long:"tonumber" env:"BN_TO_NUMBER" required:"true" description:"The number to send the confirmation SMS to"`
+	DryRun               bool   `short:"x" long:"dryrun" env:"BN_DRY_RUN" description:"Run everything, but don't do the booking and assume it succeeds"`
+	TodayDate            string `short:"d" long:"todaydate" env:"BN_TODAY_DATE" description:"The date to use for today's date"`
 }
 
 func GetConfig() (Config, error) {

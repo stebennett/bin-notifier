@@ -37,22 +37,38 @@ Download pre-built binaries from the [GitHub Releases](https://github.com/steben
 
 ### Environment Variables
 
+#### Twilio Credentials
+
 | Variable | Required | Description |
 |----------|----------|-------------|
 | `TWILIO_ACCOUNT_SID` | Yes | Your Twilio account SID |
 | `TWILIO_AUTH_TOKEN` | Yes | Your Twilio auth token |
 
+#### Application Configuration
+
+All command line flags can also be set via environment variables. CLI flags take precedence over environment variables.
+
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `BN_POSTCODE` | Yes | The postcode to scrape bin times for |
+| `BN_ADDRESS_CODE` | Yes | The address code from the council website |
+| `BN_REGULAR_COLLECTION_DAY` | Yes | Regular collection day (0=Sunday, 1=Monday, ..., 6=Saturday) |
+| `BN_FROM_NUMBER` | Yes | Twilio phone number to send SMS from |
+| `BN_TO_NUMBER` | Yes | Phone number to send SMS notifications to |
+| `BN_DRY_RUN` | No | Set to `true` to run without sending SMS |
+| `BN_TODAY_DATE` | No | Override today's date (format: YYYY-MM-DD) |
+
 ### Command Line Flags
 
-| Flag | Short | Required | Description |
-|------|-------|----------|-------------|
-| `--postcode` | `-p` | Yes | The postcode to scrape bin times for |
-| `--addressCode` | `-a` | Yes | The address code from the council website |
-| `--regularcollectionday` | `-r` | Yes | Regular collection day (0=Sunday, 1=Monday, ..., 6=Saturday) |
-| `--fromnumber` | `-f` | Yes | Twilio phone number to send SMS from |
-| `--tonumber` | `-n` | Yes | Phone number to send SMS notifications to |
-| `--dryrun` | `-x` | No | Run without sending SMS (for testing) |
-| `--todaydate` | `-d` | No | Override today's date (format: YYYY-MM-DD) |
+| Flag | Short | Env Var | Required | Description |
+|------|-------|---------|----------|-------------|
+| `--postcode` | `-p` | `BN_POSTCODE` | Yes | The postcode to scrape bin times for |
+| `--addressCode` | `-a` | `BN_ADDRESS_CODE` | Yes | The address code from the council website |
+| `--regularcollectionday` | `-r` | `BN_REGULAR_COLLECTION_DAY` | Yes | Regular collection day (0=Sunday, 1=Monday, ..., 6=Saturday) |
+| `--fromnumber` | `-f` | `BN_FROM_NUMBER` | Yes | Twilio phone number to send SMS from |
+| `--tonumber` | `-n` | `BN_TO_NUMBER` | Yes | Phone number to send SMS notifications to |
+| `--dryrun` | `-x` | `BN_DRY_RUN` | No | Run without sending SMS (for testing) |
+| `--todaydate` | `-d` | `BN_TODAY_DATE` | No | Override today's date (format: YYYY-MM-DD) |
 
 ### Finding Your Address Code
 

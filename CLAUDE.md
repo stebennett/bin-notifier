@@ -28,10 +28,22 @@ go test -run TestParseNextCollectionTime ./pkg/scraper/
 
 - Google Chrome or Chromium (required for headless web scraping)
 
-## Required Environment Variables (for Twilio)
+## Environment Variables
 
+**Twilio (required):**
 - `TWILIO_ACCOUNT_SID` - Twilio account SID
 - `TWILIO_AUTH_TOKEN` - Twilio auth token
+
+**Application config (alternative to CLI flags):**
+- `BN_POSTCODE` - Postcode to scrape
+- `BN_ADDRESS_CODE` - Address code from council website
+- `BN_REGULAR_COLLECTION_DAY` - Regular collection day (0-6)
+- `BN_FROM_NUMBER` - Twilio sender number
+- `BN_TO_NUMBER` - Recipient number
+- `BN_DRY_RUN` - Set to `true` for dry-run mode
+- `BN_TODAY_DATE` - Override today's date (YYYY-MM-DD)
+
+CLI flags take precedence over environment variables.
 
 ## Architecture
 
