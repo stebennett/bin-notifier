@@ -33,6 +33,34 @@ Download pre-built binaries from the [GitHub Releases](https://github.com/steben
 - Linux (amd64, arm64)
 - macOS (arm64)
 
+### Docker
+
+Multi-architecture Docker images are available on GitHub Container Registry:
+
+```bash
+docker pull ghcr.io/stebennett/bin-notifier:latest
+```
+
+Run with Docker:
+
+```bash
+docker run --rm \
+  -e TWILIO_ACCOUNT_SID="your_account_sid" \
+  -e TWILIO_AUTH_TOKEN="your_auth_token" \
+  ghcr.io/stebennett/bin-notifier:latest \
+  -p "RG12 1AB" \
+  -a "123456" \
+  -r 2 \
+  -f "+441234567890" \
+  -n "+447123456789"
+```
+
+Build locally:
+
+```bash
+docker build -t bin-notifier .
+```
+
 ## Configuration
 
 ### Environment Variables
@@ -216,7 +244,7 @@ git tag v1.0.0
 git push origin v1.0.0
 ```
 
-This triggers automated builds for all supported platforms and creates a GitHub release with downloadable zip archives.
+This triggers automated builds for all supported platforms, creates a GitHub release with downloadable zip archives, and pushes Docker images to GitHub Container Registry.
 
 ## License
 
