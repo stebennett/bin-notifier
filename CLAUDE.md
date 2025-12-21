@@ -14,12 +14,19 @@ go run cmd/notifier/main.go -p <POSTCODE> -a <ADDRESS_CODE> -f <FROM_NUMBER> -n 
 # Run with dry-run mode (no SMS sent)
 go run cmd/notifier/main.go -p <POSTCODE> -a <ADDRESS_CODE> -f <FROM_NUMBER> -n <TO_NUMBER> -r <COLLECTION_DAY> -x
 
+# Run with a specific date (for testing date logic)
+go run cmd/notifier/main.go -p <POSTCODE> -a <ADDRESS_CODE> -f <FROM_NUMBER> -n <TO_NUMBER> -r <COLLECTION_DAY> -d 2024-01-15
+
 # Run tests
 go test ./...
 
 # Run a specific test
 go test -run TestParseNextCollectionTime ./pkg/scraper/
 ```
+
+## Prerequisites
+
+- Google Chrome or Chromium (required for headless web scraping)
 
 ## Required Environment Variables (for Twilio)
 
