@@ -22,6 +22,15 @@ go test ./...
 
 # Run a specific test
 go test -run TestParseNextCollectionTime ./pkg/scraper/
+
+# Build Docker image
+docker build -t bin-notifier .
+
+# Run with Docker (dry-run mode)
+docker run --rm \
+  -e TWILIO_ACCOUNT_SID=test \
+  -e TWILIO_AUTH_TOKEN=test \
+  bin-notifier -p <POSTCODE> -a <ADDRESS_CODE> -f <FROM_NUMBER> -n <TO_NUMBER> -r <COLLECTION_DAY> -x
 ```
 
 ## Prerequisites
@@ -54,4 +63,4 @@ This is a Go application that scrapes bin collection schedules from the Bracknel
 ## GitHub Actions
 
 - **CI** (`.github/workflows/ci.yml`) - Runs on pull requests; builds and tests the application
-- **Release** (`.github/workflows/release.yml`) - Triggers on `vX.Y.Z` tags; builds for linux/amd64, linux/arm64, darwin/arm64 and creates a GitHub release with zip artifacts
+- **Release** (`.github/workflows/release.yml`) - Triggers on `vX.Y.Z` tags; builds binaries for linux/amd64, linux/arm64, darwin/arm64, creates a GitHub release with zip artifacts, and pushes Docker images to ghcr.io

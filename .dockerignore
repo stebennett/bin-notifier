@@ -1,0 +1,29 @@
+# Git
+.git
+.gitignore
+
+# IDE
+.vscode
+.idea
+*.swp
+
+# Documentation
+README.md
+LICENSE
+CLAUDE.md
+
+# GitHub workflows (not needed in image)
+.github
+
+# Build artifacts
+bin-notifier
+*.exe
+*.test
+*.out
+
+# Environment files
+.env
+*.env
+
+# Scripts
+*.sh
