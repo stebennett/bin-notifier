@@ -1,15 +1,12 @@
 module github.com/stebennett/bin-notifier
 
-go 1.25
+go 1.24
 
 require github.com/chromedp/chromedp v0.14.2
 
 require (
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/go-json-experiment/json v0.0.0-20250725192818-e39067aee2d2 // indirect
-	github.com/golang-jwt/jwt/v5 v5.2.2 // indirect
-	github.com/golang/mock v1.6.0 // indirect
-	github.com/pkg/errors v0.9.1 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
@@ -22,6 +19,5 @@ require (
 	github.com/gobwas/ws v1.4.0 // indirect
 	github.com/jessevdk/go-flags v1.6.1
 	github.com/stretchr/testify v1.11.1
-	github.com/twilio/twilio-go v1.29.0
 	golang.org/x/sys v0.34.0 // indirect
 )

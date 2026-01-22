@@ -75,8 +75,7 @@ func TestConfig_EnvironmentVariableFallback(t *testing.T) {
 		"BN_POSTCODE",
 		"BN_ADDRESS_CODE",
 		"BN_REGULAR_COLLECTION_DAY",
-		"BN_FROM_NUMBER",
-		"BN_TO_NUMBER",
+		"BN_APPRISE_URL",
 		"BN_DRY_RUN",
 		"BN_TODAY_DATE",
 	}
@@ -98,8 +97,7 @@ func TestConfig_EnvironmentVariableFallback(t *testing.T) {
 	os.Setenv("BN_POSTCODE", "RG12 1AB")
 	os.Setenv("BN_ADDRESS_CODE", "123456")
 	os.Setenv("BN_REGULAR_COLLECTION_DAY", "2")
-	os.Setenv("BN_FROM_NUMBER", "+441234567890")
-	os.Setenv("BN_TO_NUMBER", "+447123456789")
+	os.Setenv("BN_APPRISE_URL", "http://apprise:8000/notify/")
 	os.Setenv("BN_DRY_RUN", "true")
 	os.Setenv("BN_TODAY_DATE", "2024-01-15")
 
@@ -112,8 +110,7 @@ func TestConfig_EnvironmentVariableFallback(t *testing.T) {
 	assert.Equal(t, "RG12 1AB", c.PostCode)
 	assert.Equal(t, "123456", c.AddressCode)
 	assert.Equal(t, 2, c.RegularCollectionDay)
-	assert.Equal(t, "+441234567890", c.FromNumber)
-	assert.Equal(t, "+447123456789", c.ToNumber)
+	assert.Equal(t, "http://apprise:8000/notify/", c.AppriseURL)
 	assert.True(t, c.DryRun)
 	assert.Equal(t, "2024-01-15", c.TodayDate)
 }
@@ -124,8 +121,7 @@ func TestConfig_CLIFlagsTakePrecedenceOverEnvVars(t *testing.T) {
 		"BN_POSTCODE",
 		"BN_ADDRESS_CODE",
 		"BN_REGULAR_COLLECTION_DAY",
-		"BN_FROM_NUMBER",
-		"BN_TO_NUMBER",
+		"BN_APPRISE_URL",
 	}
 	originalValues := make(map[string]string)
 	for _, env := range envVars {
@@ -145,8 +141,7 @@ func TestConfig_CLIFlagsTakePrecedenceOverEnvVars(t *testing.T) {
 	os.Setenv("BN_POSTCODE", "ENV_POSTCODE")
 	os.Setenv("BN_ADDRESS_CODE", "123456")
 	os.Setenv("BN_REGULAR_COLLECTION_DAY", "2")
-	os.Setenv("BN_FROM_NUMBER", "+441234567890")
-	os.Setenv("BN_TO_NUMBER", "+447123456789")
+	os.Setenv("BN_APPRISE_URL", "http://apprise:8000/notify/")
 
 	// Parse with CLI flag overriding postcode
 	var c Config
