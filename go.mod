@@ -22,6 +22,6 @@ require (
 	github.com/gobwas/ws v1.4.0 // indirect
 	github.com/jessevdk/go-flags v1.6.1
 	github.com/stretchr/testify v1.11.1
-	github.com/twilio/twilio-go v1.29.0
+	github.com/twilio/twilio-go v1.30.0
 	golang.org/x/sys v0.34.0 // indirect
 )
