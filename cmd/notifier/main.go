@@ -16,16 +16,16 @@ type BinScraper interface {
 	ScrapeBinTimes(postcode string, address string) ([]scraper.BinTime, error)
 }
 
-// SMSClient is an interface for sending SMS messages.
-type SMSClient interface {
-	SendSms(from string, to string, body string, dryRun bool) error
+// NotificationClient is an interface for sending notifications.
+type NotificationClient interface {
+	SendNotification(url string, body string, tag string, dryRun bool) error
 }
 
 // Notifier orchestrates the bin collection notification workflow.
 type Notifier struct {
-	Scraper   BinScraper
-	SMSClient SMSClient
-	Clock     func() time.Time
+	Scraper            BinScraper
+	NotificationClient NotificationClient
+	Clock              func() time.Time
 }
 
 // NotificationResult contains the result of a notification run.
@@ -70,7 +70,7 @@ func (n *Notifier) Run(cfg config.Config) (*NotificationResult, error) {
 		result.Message = "Tomorrows bin collections are: " + strings.Join(tomorrowsCollections, ", ")
 		log.Println("Tomorrows collections are:", strings.Join(tomorrowsCollections, ", "))
 
-		err = n.SMSClient.SendSms(cfg.FromNumber, cfg.ToNumber, result.Message, cfg.DryRun)
+		err = n.NotificationClient.SendNotification(cfg.AppriseURL, result.Message, cfg.AppriseTag, cfg.DryRun)
 		if err != nil {
 			return nil, err
 		}
@@ -79,7 +79,7 @@ func (n *Notifier) Run(cfg config.Config) (*NotificationResult, error) {
 		result.Message = "Tomorrow is a regular bin collection day, but there are no collections."
 		log.Println("No collections tomorrow, but it's a regular collection day")
 
-		err = n.SMSClient.SendSms(cfg.FromNumber, cfg.ToNumber, result.Message, cfg.DryRun)
+		err = n.NotificationClient.SendNotification(cfg.AppriseURL, result.Message, cfg.AppriseTag, cfg.DryRun)
 		if err != nil {
 			return nil, err
 		}
@@ -91,16 +91,6 @@ func (n *Notifier) Run(cfg config.Config) (*NotificationResult, error) {
 	return result, nil
 }
 
-// twilioSMSClientAdapter adapts TwilioClient to the SMSClient interface
-type twilioSMSClientAdapter struct {
-	client *clients.TwilioClient
-}
-
-func (a *twilioSMSClientAdapter) SendSms(from string, to string, body string, dryRun bool) error {
-	_, err := a.client.SendSms(from, to, body, dryRun)
-	return err
-}
-
 func main() {
 	cfg, err := config.GetConfig()
 	if err != nil {
@@ -108,9 +98,9 @@ func main() {
 	}
 
 	notifier := &Notifier{
-		Scraper:   scraper.NewBinTimesScraper(),
-		SMSClient: &twilioSMSClientAdapter{client: clients.NewTwilioClient()},
-		Clock:     time.Now,
+		Scraper:            scraper.NewBinTimesScraper(),
+		NotificationClient: clients.NewAppriseClient(),
+		Clock:              time.Now,
 	}
 
 	_, err = notifier.Run(cfg)
