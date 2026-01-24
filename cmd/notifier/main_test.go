@@ -25,14 +25,16 @@ type mockNotificationClient struct {
 	sendCalled bool
 	lastURL    string
 	lastBody   string
+	lastTag    string
 	lastDryRun bool
 	err        error
 }
 
-func (m *mockNotificationClient) SendNotification(url string, body string, dryRun bool) error {
+func (m *mockNotificationClient) SendNotification(url string, body string, tag string, dryRun bool) error {
 	m.sendCalled = true
 	m.lastURL = url
 	m.lastBody = body
+	m.lastTag = tag
 	m.lastDryRun = dryRun
 	return m.err
 }
@@ -253,4 +255,56 @@ func TestNotifier_DryRunPassedToNotificationClient(t *testing.T) {
 	assert.Nil(t, err)
 	assert.True(t, mockNotify.sendCalled)
 	assert.True(t, mockNotify.lastDryRun)
+}
+
+func TestNotifier_TagPassedToNotificationClient(t *testing.T) {
+	today := time.Date(2024, 1, 15, 10, 0, 0, 0, time.UTC)
+	tomorrow := today.AddDate(0, 0, 1)
+
+	mockScr := &mockScraper{
+		binTimes: []scraper.BinTime{
+			{Type: "General Waste", CollectionTime: tomorrow},
+		},
+	}
+	mockNotify := &mockNotificationClient{}
+
+	notifier := &Notifier{
+		Scraper:            mockScr,
+		NotificationClient: mockNotify,
+		Clock:              func() time.Time { return today },
+	}
+
+	cfg := createTestConfig()
+	cfg.AppriseTag = "sms"
+	_, err := notifier.Run(cfg)
+
+	assert.Nil(t, err)
+	assert.True(t, mockNotify.sendCalled)
+	assert.Equal(t, "sms", mockNotify.lastTag)
+}
+
+func TestNotifier_EmptyTagPassedWhenNotConfigured(t *testing.T) {
+	today := time.Date(2024, 1, 15, 10, 0, 0, 0, time.UTC)
+	tomorrow := today.AddDate(0, 0, 1)
+
+	mockScr := &mockScraper{
+		binTimes: []scraper.BinTime{
+			{Type: "General Waste", CollectionTime: tomorrow},
+		},
+	}
+	mockNotify := &mockNotificationClient{}
+
+	notifier := &Notifier{
+		Scraper:            mockScr,
+		NotificationClient: mockNotify,
+		Clock:              func() time.Time { return today },
+	}
+
+	cfg := createTestConfig()
+	// AppriseTag not set, should be empty string
+	_, err := notifier.Run(cfg)
+
+	assert.Nil(t, err)
+	assert.True(t, mockNotify.sendCalled)
+	assert.Equal(t, "", mockNotify.lastTag)
 }

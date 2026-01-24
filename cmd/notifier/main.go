@@ -18,7 +18,7 @@ type BinScraper interface {
 
 // NotificationClient is an interface for sending notifications.
 type NotificationClient interface {
-	SendNotification(url string, body string, dryRun bool) error
+	SendNotification(url string, body string, tag string, dryRun bool) error
 }
 
 // Notifier orchestrates the bin collection notification workflow.
@@ -70,7 +70,7 @@ func (n *Notifier) Run(cfg config.Config) (*NotificationResult, error) {
 		result.Message = "Tomorrows bin collections are: " + strings.Join(tomorrowsCollections, ", ")
 		log.Println("Tomorrows collections are:", strings.Join(tomorrowsCollections, ", "))
 
-		err = n.NotificationClient.SendNotification(cfg.AppriseURL, result.Message, cfg.DryRun)
+		err = n.NotificationClient.SendNotification(cfg.AppriseURL, result.Message, cfg.AppriseTag, cfg.DryRun)
 		if err != nil {
 			return nil, err
 		}
@@ -79,7 +79,7 @@ func (n *Notifier) Run(cfg config.Config) (*NotificationResult, error) {
 		result.Message = "Tomorrow is a regular bin collection day, but there are no collections."
 		log.Println("No collections tomorrow, but it's a regular collection day")
 
-		err = n.NotificationClient.SendNotification(cfg.AppriseURL, result.Message, cfg.DryRun)
+		err = n.NotificationClient.SendNotification(cfg.AppriseURL, result.Message, cfg.AppriseTag, cfg.DryRun)
 		if err != nil {
 			return nil, err
 		}

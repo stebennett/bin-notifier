@@ -24,6 +24,7 @@ type AppriseClient struct {
 type AppriseRequest struct {
 	URLs string `json:"urls"`
 	Body string `json:"body"`
+	Tag  string `json:"tag,omitempty"`
 }
 
 // NewAppriseClient creates a new AppriseClient with the default HTTP client.
@@ -44,15 +45,21 @@ func NewAppriseClientWithHTTP(client HTTPClient) *AppriseClient {
 // SendNotification sends a notification via the Apprise API.
 // The appriseURL should be in the format: http://apprise-server:port/notify/
 // followed by the notification service URL (e.g., tgram://token/chatid)
-func (a *AppriseClient) SendNotification(appriseURL string, body string, dryRun bool) error {
+// The tag parameter is optional and can be used to filter notification services.
+func (a *AppriseClient) SendNotification(appriseURL string, body string, tag string, dryRun bool) error {
 	if dryRun {
-		log.Printf("DRY RUN: Would have sent notification to %s with body: %s", appriseURL, body)
+		if tag != "" {
+			log.Printf("DRY RUN: Would have sent notification to %s with tag %s and body: %s", appriseURL, tag, body)
+		} else {
+			log.Printf("DRY RUN: Would have sent notification to %s with body: %s", appriseURL, body)
+		}
 		return nil
 	}
 
 	payload := AppriseRequest{
 		URLs: appriseURL,
 		Body: body,
+		Tag:  tag,
 	}
 
 	jsonData, err := json.Marshal(payload)

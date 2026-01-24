@@ -33,7 +33,17 @@ func TestSendNotification_DryRun_ReturnsNilWithoutCallingAPI(t *testing.T) {
 	mock := &mockHTTPClient{}
 	client := NewAppriseClientWithHTTP(mock)
 
-	err := client.SendNotification("http://apprise:8000/notify/", "Test message", true)
+	err := client.SendNotification("http://apprise:8000/notify/", "Test message", "", true)
+
+	assert.Nil(t, err)
+	assert.False(t, mock.doCalled, "HTTP client should not be called in dry-run mode")
+}
+
+func TestSendNotification_DryRunWithTag_ReturnsNilWithoutCallingAPI(t *testing.T) {
+	mock := &mockHTTPClient{}
+	client := NewAppriseClientWithHTTP(mock)
+
+	err := client.SendNotification("http://apprise:8000/notify/", "Test message", "sms", true)
 
 	assert.Nil(t, err)
 	assert.False(t, mock.doCalled, "HTTP client should not be called in dry-run mode")
@@ -46,7 +56,7 @@ func TestSendNotification_CallsAppriseWithCorrectParams(t *testing.T) {
 	appriseURL := "http://apprise:8000/notify/"
 	body := "Test message body"
 
-	err := client.SendNotification(appriseURL, body, false)
+	err := client.SendNotification(appriseURL, body, "", false)
 
 	assert.Nil(t, err)
 	assert.True(t, mock.doCalled, "HTTP client should be called")
@@ -60,6 +70,26 @@ func TestSendNotification_CallsAppriseWithCorrectParams(t *testing.T) {
 	assert.Contains(t, string(reqBody), `"urls"`)
 	assert.Contains(t, string(reqBody), `"body"`)
 	assert.Contains(t, string(reqBody), body)
+	// Tag should be omitted when empty
+	assert.NotContains(t, string(reqBody), `"tag"`)
+}
+
+func TestSendNotification_IncludesTagWhenProvided(t *testing.T) {
+	mock := &mockHTTPClient{}
+	client := NewAppriseClientWithHTTP(mock)
+
+	appriseURL := "http://apprise:8000/notify/"
+	body := "Test message body"
+	tag := "sms"
+
+	err := client.SendNotification(appriseURL, body, tag, false)
+
+	assert.Nil(t, err)
+	assert.True(t, mock.doCalled, "HTTP client should be called")
+
+	// Verify request body contains tag field
+	reqBody, _ := io.ReadAll(mock.lastReq.Body)
+	assert.Contains(t, string(reqBody), `"tag":"sms"`)
 }
 
 func TestSendNotification_ReturnsErrorOnHTTPFailure(t *testing.T) {
@@ -71,7 +101,7 @@ func TestSendNotification_ReturnsErrorOnHTTPFailure(t *testing.T) {
 	}
 	client := NewAppriseClientWithHTTP(mock)
 
-	err := client.SendNotification("http://apprise:8000/notify/", "Test message", false)
+	err := client.SendNotification("http://apprise:8000/notify/", "Test message", "", false)
 
 	assert.NotNil(t, err)
 	assert.Contains(t, err.Error(), "failed to send notification")
@@ -88,7 +118,7 @@ func TestSendNotification_ReturnsErrorOnNon2xxStatus(t *testing.T) {
 	}
 	client := NewAppriseClientWithHTTP(mock)
 
-	err := client.SendNotification("http://apprise:8000/notify/", "Test message", false)
+	err := client.SendNotification("http://apprise:8000/notify/", "Test message", "", false)
 
 	assert.NotNil(t, err)
 	assert.Contains(t, err.Error(), "status 400")
@@ -110,7 +140,7 @@ func TestSendNotification_SucceedsOn2xxStatus(t *testing.T) {
 			}
 			client := NewAppriseClientWithHTTP(mock)
 
-			err := client.SendNotification("http://apprise:8000/notify/", "Test message", false)
+			err := client.SendNotification("http://apprise:8000/notify/", "Test message", "", false)
 
 			assert.Nil(t, err)
 		})
