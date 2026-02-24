@@ -1,6 +1,6 @@
 module github.com/stebennett/bin-notifier
 
-go 1.25
+go 1.26
 
 require github.com/chromedp/chromedp v0.14.2
 
