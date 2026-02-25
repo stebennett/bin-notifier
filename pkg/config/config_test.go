@@ -1,159 +1,209 @@
 package config
 
 import (
-	"errors"
 	"os"
+	"path/filepath"
 	"testing"
+	"time"
 
-	flags "github.com/jessevdk/go-flags"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
-func TestIsErrHelp_WithHelpError(t *testing.T) {
-	helpErr := &flags.Error{
-		Type: flags.ErrHelp,
-	}
-
-	result := isErrHelp(helpErr)
-
-	assert.True(t, result)
+func writeConfigFile(t *testing.T, content string) string {
+	t.Helper()
+	dir := t.TempDir()
+	path := filepath.Join(dir, "config.yaml")
+	err := os.WriteFile(path, []byte(content), 0644)
+	require.NoError(t, err)
+	return path
 }
 
-func TestIsErrHelp_WithOtherFlagsError(t *testing.T) {
+func TestLoadConfig_ValidMultipleLocations(t *testing.T) {
+	path := writeConfigFile(t, `
+from_number: "+441234567890"
+to_number: "+449876543210"
+locations:
+  - label: Home
+    scraper: bracknell
+    postcode: "RG12 1AB"
+    address_code: "12345"
+    collection_day: tuesday
+  - label: Office
+    scraper: wokingham
+    postcode: "RG42 2XY"
+    address_code: "67890"
+    collection_day: thursday
+`)
+
+	cfg, err := LoadConfig(path)
+
+	assert.NoError(t, err)
+	assert.Equal(t, "+441234567890", cfg.FromNumber)
+	assert.Equal(t, "+449876543210", cfg.ToNumber)
+	assert.Len(t, cfg.Locations, 2)
+
+	assert.Equal(t, "Home", cfg.Locations[0].Label)
+	assert.Equal(t, "bracknell", cfg.Locations[0].Scraper)
+	assert.Equal(t, "RG12 1AB", cfg.Locations[0].PostCode)
+	assert.Equal(t, "12345", cfg.Locations[0].AddressCode)
+	assert.Equal(t, time.Tuesday, cfg.Locations[0].CollectionDay)
+
+	assert.Equal(t, "Office", cfg.Locations[1].Label)
+	assert.Equal(t, "wokingham", cfg.Locations[1].Scraper)
+}
+
+func TestLoadConfig_CaseInsensitiveDay(t *testing.T) {
+	path := writeConfigFile(t, `
+from_number: "+441234567890"
+to_number: "+449876543210"
+locations:
+  - label: Home
+    scraper: bracknell
+    postcode: "RG12 1AB"
+    address_code: "12345"
+    collection_day: WEDNESDAY
+`)
+
+	cfg, err := LoadConfig(path)
+	assert.NoError(t, err)
+	assert.Equal(t, time.Wednesday, cfg.Locations[0].CollectionDay)
+}
+
+func TestLoadConfig_InvalidDay(t *testing.T) {
+	path := writeConfigFile(t, `
+from_number: "+441234567890"
+to_number: "+449876543210"
+locations:
+  - label: Home
+    scraper: bracknell
+    postcode: "RG12 1AB"
+    address_code: "12345"
+    collection_day: notaday
+`)
+
+	_, err := LoadConfig(path)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "invalid weekday")
+}
+
+func TestLoadConfig_MissingRequiredFields(t *testing.T) {
 	tests := []struct {
 		name    string
-		errType flags.ErrorType
+		yaml    string
+		errText string
 	}{
 		{
-			name:    "required flag error",
-			errType: flags.ErrRequired,
+			name: "missing from_number",
+			yaml: `
+to_number: "+449876543210"
+locations:
+  - label: Home
+    scraper: bracknell
+    postcode: "RG12 1AB"
+    address_code: "12345"
+    collection_day: tuesday`,
+			errText: "from_number is required",
 		},
 		{
-			name:    "unknown flag error",
-			errType: flags.ErrUnknownFlag,
+			name: "missing to_number",
+			yaml: `
+from_number: "+441234567890"
+locations:
+  - label: Home
+    scraper: bracknell
+    postcode: "RG12 1AB"
+    address_code: "12345"
+    collection_day: tuesday`,
+			errText: "to_number is required",
 		},
 		{
-			name:    "invalid choice error",
-			errType: flags.ErrInvalidChoice,
+			name: "no locations",
+			yaml: `
+from_number: "+441234567890"
+to_number: "+449876543210"
+locations: []`,
+			errText: "at least one location is required",
 		},
 		{
-			name:    "marshal error",
-			errType: flags.ErrMarshal,
+			name: "missing label",
+			yaml: `
+from_number: "+441234567890"
+to_number: "+449876543210"
+locations:
+  - scraper: bracknell
+    postcode: "RG12 1AB"
+    address_code: "12345"
+    collection_day: tuesday`,
+			errText: "label is required",
+		},
+		{
+			name: "missing scraper",
+			yaml: `
+from_number: "+441234567890"
+to_number: "+449876543210"
+locations:
+  - label: Home
+    postcode: "RG12 1AB"
+    address_code: "12345"
+    collection_day: tuesday`,
+			errText: "scraper is required",
+		},
+		{
+			name: "missing postcode",
+			yaml: `
+from_number: "+441234567890"
+to_number: "+449876543210"
+locations:
+  - label: Home
+    scraper: bracknell
+    address_code: "12345"
+    collection_day: tuesday`,
+			errText: "postcode is required",
+		},
+		{
+			name: "missing address_code",
+			yaml: `
+from_number: "+441234567890"
+to_number: "+449876543210"
+locations:
+  - label: Home
+    scraper: bracknell
+    postcode: "RG12 1AB"
+    collection_day: tuesday`,
+			errText: "address_code is required",
+		},
+		{
+			name: "missing collection_day",
+			yaml: `
+from_number: "+441234567890"
+to_number: "+449876543210"
+locations:
+  - label: Home
+    scraper: bracknell
+    postcode: "RG12 1AB"
+    address_code: "12345"`,
+			errText: "collection_day is required",
 		},
 	}
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			flagsErr := &flags.Error{
-				Type: test.errType,
-			}
-
-			result := isErrHelp(flagsErr)
-
-			assert.False(t, result)
+			path := writeConfigFile(t, test.yaml)
+			_, err := LoadConfig(path)
+			assert.Error(t, err)
+			assert.Contains(t, err.Error(), test.errText)
 		})
 	}
 }
 
-func TestIsErrHelp_WithStandardError(t *testing.T) {
-	standardErr := errors.New("some standard error")
-
-	result := isErrHelp(standardErr)
-
-	assert.False(t, result)
+func TestLoadConfig_FileNotFound(t *testing.T) {
+	_, err := LoadConfig("/nonexistent/config.yaml")
+	assert.Error(t, err)
 }
 
-func TestIsErrHelp_WithNilError(t *testing.T) {
-	result := isErrHelp(nil)
-
-	assert.False(t, result)
-}
-
-func TestConfig_EnvironmentVariableFallback(t *testing.T) {
-	// Save original env vars and restore after test
-	envVars := []string{
-		"BN_POSTCODE",
-		"BN_ADDRESS_CODE",
-		"BN_REGULAR_COLLECTION_DAY",
-		"BN_FROM_NUMBER",
-		"BN_TO_NUMBER",
-		"BN_DRY_RUN",
-		"BN_TODAY_DATE",
-	}
-	originalValues := make(map[string]string)
-	for _, env := range envVars {
-		originalValues[env] = os.Getenv(env)
-	}
-	defer func() {
-		for _, env := range envVars {
-			if originalValues[env] == "" {
-				os.Unsetenv(env)
-			} else {
-				os.Setenv(env, originalValues[env])
-			}
-		}
-	}()
-
-	// Set environment variables
-	os.Setenv("BN_POSTCODE", "RG12 1AB")
-	os.Setenv("BN_ADDRESS_CODE", "123456")
-	os.Setenv("BN_REGULAR_COLLECTION_DAY", "2")
-	os.Setenv("BN_FROM_NUMBER", "+441234567890")
-	os.Setenv("BN_TO_NUMBER", "+447123456789")
-	os.Setenv("BN_DRY_RUN", "true")
-	os.Setenv("BN_TODAY_DATE", "2024-01-15")
-
-	// Parse config using env vars (no CLI args)
-	var c Config
-	parser := flags.NewParser(&c, flags.IgnoreUnknown)
-	_, err := parser.ParseArgs([]string{})
-
-	assert.NoError(t, err)
-	assert.Equal(t, "RG12 1AB", c.PostCode)
-	assert.Equal(t, "123456", c.AddressCode)
-	assert.Equal(t, 2, c.RegularCollectionDay)
-	assert.Equal(t, "+441234567890", c.FromNumber)
-	assert.Equal(t, "+447123456789", c.ToNumber)
-	assert.True(t, c.DryRun)
-	assert.Equal(t, "2024-01-15", c.TodayDate)
-}
-
-func TestConfig_CLIFlagsTakePrecedenceOverEnvVars(t *testing.T) {
-	// Save original env vars and restore after test
-	envVars := []string{
-		"BN_POSTCODE",
-		"BN_ADDRESS_CODE",
-		"BN_REGULAR_COLLECTION_DAY",
-		"BN_FROM_NUMBER",
-		"BN_TO_NUMBER",
-	}
-	originalValues := make(map[string]string)
-	for _, env := range envVars {
-		originalValues[env] = os.Getenv(env)
-	}
-	defer func() {
-		for _, env := range envVars {
-			if originalValues[env] == "" {
-				os.Unsetenv(env)
-			} else {
-				os.Setenv(env, originalValues[env])
-			}
-		}
-	}()
-
-	// Set all required env vars
-	os.Setenv("BN_POSTCODE", "ENV_POSTCODE")
-	os.Setenv("BN_ADDRESS_CODE", "123456")
-	os.Setenv("BN_REGULAR_COLLECTION_DAY", "2")
-	os.Setenv("BN_FROM_NUMBER", "+441234567890")
-	os.Setenv("BN_TO_NUMBER", "+447123456789")
-
-	// Parse with CLI flag overriding postcode
-	var c Config
-	parser := flags.NewParser(&c, flags.IgnoreUnknown)
-	_, err := parser.ParseArgs([]string{"-p", "CLI_POSTCODE"})
-
-	assert.NoError(t, err)
-	assert.Equal(t, "CLI_POSTCODE", c.PostCode, "CLI flag should take precedence over env var")
-	assert.Equal(t, "123456", c.AddressCode, "Env var should be used when no CLI flag provided")
+func TestLoadConfig_InvalidYAML(t *testing.T) {
+	path := writeConfigFile(t, `{{{invalid yaml`)
+	_, err := LoadConfig(path)
+	assert.Error(t, err)
 }

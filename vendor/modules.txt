@@ -91,9 +91,6 @@ github.com/golang-jwt/jwt/v5
 # github.com/golang/mock v1.6.0
 ## explicit; go 1.11
 github.com/golang/mock/gomock
-# github.com/jessevdk/go-flags v1.6.1
-## explicit; go 1.20
-github.com/jessevdk/go-flags
 # github.com/pkg/errors v0.9.1
 ## explicit
 github.com/pkg/errors
@@ -104,6 +101,7 @@ github.com/pmezard/go-difflib/difflib
 ## explicit; go 1.17
 github.com/stretchr/testify/assert
 github.com/stretchr/testify/assert/yaml
+github.com/stretchr/testify/require
 # github.com/twilio/twilio-go v1.30.2
 ## explicit; go 1.19
 github.com/twilio/twilio-go

@@ -1,43 +1,81 @@
 package config
 
 import (
-	"errors"
+	"fmt"
+	"os"
+	"time"
 
-	flags "github.com/jessevdk/go-flags"
+	"github.com/stebennett/bin-notifier/pkg/dateutil"
+	"gopkg.in/yaml.v3"
 )
 
-var (
-	ErrHelp = errors.New("help")
-)
+type Location struct {
+	Label         string       `yaml:"label"`
+	Scraper       string       `yaml:"scraper"`
+	PostCode      string       `yaml:"postcode"`
+	AddressCode   string       `yaml:"address_code"`
+	CollectionDay time.Weekday `yaml:"-"`
+	RawDay        string       `yaml:"collection_day"`
+}
 
 type Config struct {
-	PostCode             string `short:"p" long:"postcode" env:"BN_POSTCODE" description:"The postcode to scrape bin times for" required:"true"`
-	AddressCode          string `short:"a" long:"addressCode" env:"BN_ADDRESS_CODE" description:"The address to scrape bin times for" required:"true"`
-	RegularCollectionDay int    `short:"r" long:"regularcollectionday" env:"BN_REGULAR_COLLECTION_DAY" description:"The regular collection day of the week" required:"true"`
-	FromNumber           string `short:"f" long:"fromnumber" env:"BN_FROM_NUMBER" required:"true" description:"The number to send the confirmation SMS from"`
-	ToNumber             string `short:"n" long:"tonumber" env:"BN_TO_NUMBER" required:"true" description:"The number to send the confirmation SMS to"`
-	DryRun               bool   `short:"x" long:"dryrun" env:"BN_DRY_RUN" description:"Run everything, but don't do the booking and assume it succeeds"`
-	TodayDate            string `short:"d" long:"todaydate" env:"BN_TODAY_DATE" description:"The date to use for today's date"`
+	FromNumber string     `yaml:"from_number"`
+	ToNumber   string     `yaml:"to_number"`
+	Locations  []Location `yaml:"locations"`
+	DryRun     bool       `yaml:"-"`
+	TodayDate  string     `yaml:"-"`
 }
 
-func GetConfig() (Config, error) {
-	var c Config
-	parser := flags.NewParser(&c, flags.Default)
-	_, err := parser.Parse()
+func LoadConfig(path string) (Config, error) {
+	data, err := os.ReadFile(path)
 	if err != nil {
-		if isErrHelp(err) {
-			return c, ErrHelp
-		}
-		return c, err
+		return Config{}, err
 	}
 
-	return c, nil
+	var cfg Config
+	if err := yaml.Unmarshal(data, &cfg); err != nil {
+		return Config{}, err
+	}
+
+	if err := validate(&cfg); err != nil {
+		return Config{}, err
+	}
+
+	return cfg, nil
 }
 
-func isErrHelp(err error) bool {
-	var flagsErr *flags.Error
-	if errors.As(err, &flagsErr) {
-		return flagsErr.Type == flags.ErrHelp
+func validate(cfg *Config) error {
+	if cfg.FromNumber == "" {
+		return fmt.Errorf("from_number is required")
 	}
-	return false
+	if cfg.ToNumber == "" {
+		return fmt.Errorf("to_number is required")
+	}
+	if len(cfg.Locations) == 0 {
+		return fmt.Errorf("at least one location is required")
+	}
+	for i := range cfg.Locations {
+		loc := &cfg.Locations[i]
+		if loc.Label == "" {
+			return fmt.Errorf("location %d: label is required", i+1)
+		}
+		if loc.Scraper == "" {
+			return fmt.Errorf("location %d: scraper is required", i+1)
+		}
+		if loc.PostCode == "" {
+			return fmt.Errorf("location %d: postcode is required", i+1)
+		}
+		if loc.AddressCode == "" {
+			return fmt.Errorf("location %d: address_code is required", i+1)
+		}
+		if loc.RawDay == "" {
+			return fmt.Errorf("location %d: collection_day is required", i+1)
+		}
+		day, err := dateutil.ParseWeekday(loc.RawDay)
+		if err != nil {
+			return fmt.Errorf("location %d: %w", i+1, err)
+		}
+		loc.CollectionDay = day
+	}
+	return nil
 }
