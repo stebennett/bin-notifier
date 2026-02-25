@@ -108,7 +108,7 @@ func main() {
 	}
 
 	notifier := &Notifier{
-		Scraper:   scraper.NewBinTimesScraper(),
+		Scraper:   &scraper.BracknellScraper{},
 		SMSClient: &twilioSMSClientAdapter{client: clients.NewTwilioClient()},
 		Clock:     time.Now,
 	}
