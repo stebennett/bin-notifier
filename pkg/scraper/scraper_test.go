@@ -7,6 +7,24 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+func TestNewScraper_Bracknell(t *testing.T) {
+	s, err := NewScraper("bracknell")
+	assert.NoError(t, err)
+	assert.IsType(t, &BracknellScraper{}, s)
+}
+
+func TestNewScraper_UnknownReturnsError(t *testing.T) {
+	_, err := NewScraper("unknown_council")
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "unknown scraper")
+}
+
+func TestNewScraper_CaseInsensitive(t *testing.T) {
+	s, err := NewScraper("Bracknell")
+	assert.NoError(t, err)
+	assert.IsType(t, &BracknellScraper{}, s)
+}
+
 func TestParseNextCollectionTime(t *testing.T) {
 	tests := []struct {
 		name     string
@@ -45,7 +63,7 @@ func TestParseNextCollectionTime(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			actual, err := parseNextCollectionTime(test.input)
+			actual, err := parseBracknellCollectionTime(test.input)
 			assert.NoError(t, err)
 			assert.Equal(t, test.expected, actual)
 		})
@@ -85,7 +103,7 @@ func TestParseNextCollectionTime_Errors(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			_, err := parseNextCollectionTime(test.input)
+			_, err := parseBracknellCollectionTime(test.input)
 			assert.Error(t, err)
 			assert.EqualError(t, err, "failed to parse next collection time")
 		})
@@ -93,7 +111,7 @@ func TestParseNextCollectionTime_Errors(t *testing.T) {
 }
 
 func TestScrapeBinTimes_ValidationErrors(t *testing.T) {
-	scraper := NewBinTimesScraper()
+	scraper := &BracknellScraper{}
 
 	t.Run("empty postcode returns error", func(t *testing.T) {
 		_, err := scraper.ScrapeBinTimes("", "123")
