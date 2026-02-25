@@ -158,3 +158,34 @@ func TestIsDateMatching(t *testing.T) {
 		})
 	}
 }
+
+func TestParseWeekday(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		expected time.Weekday
+		hasError bool
+	}{
+		{name: "lowercase monday", input: "monday", expected: time.Monday},
+		{name: "uppercase TUESDAY", input: "TUESDAY", expected: time.Tuesday},
+		{name: "mixed case Wednesday", input: "Wednesday", expected: time.Wednesday},
+		{name: "thursday", input: "thursday", expected: time.Thursday},
+		{name: "friday", input: "friday", expected: time.Friday},
+		{name: "saturday", input: "saturday", expected: time.Saturday},
+		{name: "sunday", input: "sunday", expected: time.Sunday},
+		{name: "invalid day", input: "notaday", hasError: true},
+		{name: "empty string", input: "", hasError: true},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			result, err := ParseWeekday(test.input)
+			if test.hasError {
+				assert.Error(t, err)
+			} else {
+				assert.NoError(t, err)
+				assert.Equal(t, test.expected, result)
+			}
+		})
+	}
+}
