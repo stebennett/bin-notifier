@@ -1,6 +1,7 @@
 package config
 
 import (
+	"flag"
 	"fmt"
 	"os"
 	"time"
@@ -8,6 +9,38 @@ import (
 	"github.com/stebennett/bin-notifier/pkg/dateutil"
 	"gopkg.in/yaml.v3"
 )
+
+type Flags struct {
+	ConfigFile string
+	DryRun     bool
+	TodayDate  string
+}
+
+func ParseFlags(args []string) (Flags, error) {
+	fs := flag.NewFlagSet("bin-notifier", flag.ContinueOnError)
+
+	configDefault := os.Getenv("BN_CONFIG_FILE")
+	dryRunDefault := os.Getenv("BN_DRY_RUN") == "true"
+	todayDateDefault := os.Getenv("BN_TODAY_DATE")
+
+	var f Flags
+	fs.StringVar(&f.ConfigFile, "c", configDefault, "path to YAML config file")
+	fs.StringVar(&f.ConfigFile, "config", configDefault, "path to YAML config file")
+	fs.BoolVar(&f.DryRun, "x", dryRunDefault, "dry-run mode (no SMS sent)")
+	fs.BoolVar(&f.DryRun, "dryrun", dryRunDefault, "dry-run mode (no SMS sent)")
+	fs.StringVar(&f.TodayDate, "d", todayDateDefault, "override today's date (YYYY-MM-DD)")
+	fs.StringVar(&f.TodayDate, "todaydate", todayDateDefault, "override today's date (YYYY-MM-DD)")
+
+	if err := fs.Parse(args); err != nil {
+		return Flags{}, err
+	}
+
+	if f.ConfigFile == "" {
+		return Flags{}, fmt.Errorf("config file is required (-c or BN_CONFIG_FILE)")
+	}
+
+	return f, nil
+}
 
 type Location struct {
 	Label         string       `yaml:"label"`

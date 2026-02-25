@@ -207,3 +207,63 @@ func TestLoadConfig_InvalidYAML(t *testing.T) {
 	_, err := LoadConfig(path)
 	assert.Error(t, err)
 }
+
+func TestParseFlags_ConfigFromFlag(t *testing.T) {
+	flags, err := ParseFlags([]string{"-c", "/path/to/config.yaml"})
+	assert.NoError(t, err)
+	assert.Equal(t, "/path/to/config.yaml", flags.ConfigFile)
+	assert.False(t, flags.DryRun)
+	assert.Equal(t, "", flags.TodayDate)
+}
+
+func TestParseFlags_AllFlags(t *testing.T) {
+	flags, err := ParseFlags([]string{"-c", "/path/to/config.yaml", "-x", "-d", "2024-01-15"})
+	assert.NoError(t, err)
+	assert.Equal(t, "/path/to/config.yaml", flags.ConfigFile)
+	assert.True(t, flags.DryRun)
+	assert.Equal(t, "2024-01-15", flags.TodayDate)
+}
+
+func TestParseFlags_LongFlags(t *testing.T) {
+	flags, err := ParseFlags([]string{"--config", "/path/to/config.yaml", "--dryrun", "--todaydate", "2024-01-15"})
+	assert.NoError(t, err)
+	assert.Equal(t, "/path/to/config.yaml", flags.ConfigFile)
+	assert.True(t, flags.DryRun)
+	assert.Equal(t, "2024-01-15", flags.TodayDate)
+}
+
+func TestParseFlags_MissingConfigReturnsError(t *testing.T) {
+	_, err := ParseFlags([]string{})
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "config file is required")
+}
+
+func TestParseFlags_ConfigFromEnv(t *testing.T) {
+	t.Setenv("BN_CONFIG_FILE", "/env/config.yaml")
+	flags, err := ParseFlags([]string{})
+	assert.NoError(t, err)
+	assert.Equal(t, "/env/config.yaml", flags.ConfigFile)
+}
+
+func TestParseFlags_DryRunFromEnv(t *testing.T) {
+	t.Setenv("BN_CONFIG_FILE", "/env/config.yaml")
+	t.Setenv("BN_DRY_RUN", "true")
+	flags, err := ParseFlags([]string{})
+	assert.NoError(t, err)
+	assert.True(t, flags.DryRun)
+}
+
+func TestParseFlags_TodayDateFromEnv(t *testing.T) {
+	t.Setenv("BN_CONFIG_FILE", "/env/config.yaml")
+	t.Setenv("BN_TODAY_DATE", "2024-01-15")
+	flags, err := ParseFlags([]string{})
+	assert.NoError(t, err)
+	assert.Equal(t, "2024-01-15", flags.TodayDate)
+}
+
+func TestParseFlags_FlagOverridesEnv(t *testing.T) {
+	t.Setenv("BN_CONFIG_FILE", "/env/config.yaml")
+	flags, err := ParseFlags([]string{"-c", "/flag/config.yaml"})
+	assert.NoError(t, err)
+	assert.Equal(t, "/flag/config.yaml", flags.ConfigFile)
+}

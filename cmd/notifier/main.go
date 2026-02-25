@@ -1,7 +1,9 @@
 package main
 
 import (
+	"fmt"
 	"log"
+	"os"
 	"strings"
 	"time"
 
@@ -10,6 +12,9 @@ import (
 	"github.com/stebennett/bin-notifier/pkg/dateutil"
 	"github.com/stebennett/bin-notifier/pkg/scraper"
 )
+
+// ScraperFactory resolves a BinScraper by name.
+type ScraperFactory func(name string) (BinScraper, error)
 
 // BinScraper is an interface for scraping bin collection times.
 type BinScraper interface {
@@ -23,72 +28,90 @@ type SMSClient interface {
 
 // Notifier orchestrates the bin collection notification workflow.
 type Notifier struct {
-	Scraper   BinScraper
-	SMSClient SMSClient
-	Clock     func() time.Time
+	ScraperFactory ScraperFactory
+	SMSClient      SMSClient
+	Clock          func() time.Time
 }
 
-// NotificationResult contains the result of a notification run.
+// NotificationResult contains the result of a notification run for a single location.
 type NotificationResult struct {
+	Label       string
 	Collections []string
 	SMSSent     bool
 	Message     string
+	Error       error
 }
 
-// Run executes the notification workflow with the given configuration.
-func (n *Notifier) Run(cfg config.Config) (*NotificationResult, error) {
-	log.Printf("Scraping bin times for %s - %s", cfg.AddressCode, cfg.PostCode)
-
-	binTimes, err := n.Scraper.ScrapeBinTimes(cfg.PostCode, cfg.AddressCode)
-	if err != nil {
-		return nil, err
-	}
-
+// Run executes the notification workflow for all locations in the config.
+func (n *Notifier) Run(cfg config.Config) []NotificationResult {
 	today := n.Clock()
 	if cfg.TodayDate != "" {
-		today, err = time.Parse("2006-01-02", cfg.TodayDate)
+		parsed, err := time.Parse("2006-01-02", cfg.TodayDate)
 		if err != nil {
-			return nil, err
+			return []NotificationResult{{Error: fmt.Errorf("invalid today date: %w", err)}}
 		}
+		today = parsed
+	}
+
+	results := make([]NotificationResult, 0, len(cfg.Locations))
+	for _, loc := range cfg.Locations {
+		result := n.processLocation(cfg, loc, today)
+		results = append(results, result)
+	}
+	return results
+}
+
+func (n *Notifier) processLocation(cfg config.Config, loc config.Location, today time.Time) NotificationResult {
+	result := NotificationResult{Label: loc.Label}
+
+	log.Printf("[%s] Scraping bin times for %s - %s", loc.Label, loc.AddressCode, loc.PostCode)
+
+	s, err := n.ScraperFactory(loc.Scraper)
+	if err != nil {
+		result.Error = fmt.Errorf("[%s] scraper error: %w", loc.Label, err)
+		return result
+	}
+
+	binTimes, err := s.ScrapeBinTimes(loc.PostCode, loc.AddressCode)
+	if err != nil {
+		result.Error = fmt.Errorf("[%s] scrape error: %w", loc.Label, err)
+		return result
 	}
 
 	tomorrow := today.AddDate(0, 0, 1)
 
-	tomorrowsCollections := []string{}
 	for _, binTime := range binTimes {
-		log.Printf("Next collection for %s is %s", binTime.Type, binTime.CollectionTime.String())
+		log.Printf("[%s] Next collection for %s is %s", loc.Label, binTime.Type, binTime.CollectionTime.String())
 		if dateutil.IsDateMatching(binTime.CollectionTime, tomorrow) {
-			tomorrowsCollections = append(tomorrowsCollections, binTime.Type)
+			result.Collections = append(result.Collections, binTime.Type)
 		}
 	}
 
-	result := &NotificationResult{
-		Collections: tomorrowsCollections,
-	}
-
-	if len(tomorrowsCollections) != 0 {
-		result.Message = "Tomorrows bin collections are: " + strings.Join(tomorrowsCollections, ", ")
-		log.Println("Tomorrows collections are:", strings.Join(tomorrowsCollections, ", "))
+	if len(result.Collections) != 0 {
+		result.Message = loc.Label + ": Tomorrows bin collections are: " + strings.Join(result.Collections, ", ")
+		log.Printf("[%s] %s", loc.Label, result.Message)
 
 		err = n.SMSClient.SendSms(cfg.FromNumber, cfg.ToNumber, result.Message, cfg.DryRun)
 		if err != nil {
-			return nil, err
+			result.Error = fmt.Errorf("[%s] SMS error: %w", loc.Label, err)
+			return result
 		}
 		result.SMSSent = true
-	} else if tomorrow.Weekday() == time.Weekday(cfg.RegularCollectionDay) {
-		result.Message = "Tomorrow is a regular bin collection day, but there are no collections."
-		log.Println("No collections tomorrow, but it's a regular collection day")
+	} else if tomorrow.Weekday() == loc.CollectionDay {
+		result.Message = loc.Label + ": Tomorrow is a regular bin collection day, but there are no collections."
+		log.Printf("[%s] %s", loc.Label, result.Message)
 
 		err = n.SMSClient.SendSms(cfg.FromNumber, cfg.ToNumber, result.Message, cfg.DryRun)
 		if err != nil {
-			return nil, err
+			result.Error = fmt.Errorf("[%s] SMS error: %w", loc.Label, err)
+			return result
 		}
 		result.SMSSent = true
 	} else {
-		log.Println("No collections tomorrow as it's not a regular collection day")
+		log.Printf("[%s] No collections tomorrow as it's not a regular collection day", loc.Label)
 	}
 
-	return result, nil
+	return result
 }
 
 // twilioSMSClientAdapter adapts TwilioClient to the SMSClient interface
@@ -102,19 +125,36 @@ func (a *twilioSMSClientAdapter) SendSms(from string, to string, body string, dr
 }
 
 func main() {
-	cfg, err := config.GetConfig()
+	flags, err := config.ParseFlags(os.Args[1:])
 	if err != nil {
 		log.Fatal(err)
 	}
 
+	cfg, err := config.LoadConfig(flags.ConfigFile)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	cfg.DryRun = flags.DryRun
+	cfg.TodayDate = flags.TodayDate
+
 	notifier := &Notifier{
-		Scraper:   &scraper.BracknellScraper{},
+		ScraperFactory: func(name string) (BinScraper, error) {
+			return scraper.NewScraper(name)
+		},
 		SMSClient: &twilioSMSClientAdapter{client: clients.NewTwilioClient()},
 		Clock:     time.Now,
 	}
 
-	_, err = notifier.Run(cfg)
-	if err != nil {
-		log.Fatal(err)
+	results := notifier.Run(cfg)
+	hasError := false
+	for _, r := range results {
+		if r.Error != nil {
+			log.Printf("ERROR: %v", r.Error)
+			hasError = true
+		}
+	}
+	if hasError {
+		os.Exit(1)
 	}
 }
