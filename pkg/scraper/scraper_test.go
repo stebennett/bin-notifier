@@ -110,6 +110,19 @@ func TestParseNextCollectionTime_Errors(t *testing.T) {
 	}
 }
 
+func TestNewScraper_Wokingham(t *testing.T) {
+	s, err := NewScraper("wokingham")
+	assert.NoError(t, err)
+	assert.IsType(t, &WokinghamScraper{}, s)
+}
+
+func TestWokinghamScraper_ReturnsNotImplemented(t *testing.T) {
+	s := &WokinghamScraper{}
+	_, err := s.ScrapeBinTimes("RG41 1AA", "12345")
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "not implemented")
+}
+
 func TestScrapeBinTimes_ValidationErrors(t *testing.T) {
 	scraper := &BracknellScraper{}
 
