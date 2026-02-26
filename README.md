@@ -1,19 +1,23 @@
 # Bin Notifier
 
-A Go application that scrapes bin collection schedules from the Bracknell Forest Council website and sends SMS notifications via Twilio when collections are due tomorrow.
+A Go application that scrapes bin collection schedules from council websites and sends SMS notifications via Twilio when collections are due tomorrow. Supports multiple locations with pluggable council scrapers.
 
 ## Features
 
 - Scrapes bin collection dates using headless Chrome automation
 - Sends SMS notifications for upcoming collections via Twilio
+- **Multi-location support** — monitor multiple addresses with a single config file
+- **Pluggable scrapers** — extensible scraper registry for different council websites
 - Supports multiple bin types (General Waste, Recycling, Food, Garden)
 - Alerts on regular collection days even when no collections are scheduled
+- Partial failure handling — continues processing remaining locations if one fails
+- SMS messages prefixed with location label for easy identification
 - Dry-run mode for testing without sending SMS
 - Configurable date override for testing
 
 ## Prerequisites
 
-- Go 1.25 or later
+- Go 1.26 or later
 - Google Chrome or Chromium (for headless scraping)
 - Twilio account with SMS capabilities
 
@@ -41,27 +45,51 @@ Multi-architecture Docker images are available on GitHub Container Registry:
 docker pull ghcr.io/stebennett/bin-notifier:latest
 ```
 
-Run with Docker:
-
-```bash
-docker run --rm \
-  -e TWILIO_ACCOUNT_SID="your_account_sid" \
-  -e TWILIO_AUTH_TOKEN="your_auth_token" \
-  ghcr.io/stebennett/bin-notifier:latest \
-  -p "RG12 1AB" \
-  -a "123456" \
-  -r 2 \
-  -f "+441234567890" \
-  -n "+447123456789"
-```
-
-Build locally:
-
-```bash
-docker build -t bin-notifier .
-```
-
 ## Configuration
+
+### YAML Config File
+
+Create a `config.yaml` file with your locations and notification settings:
+
+```yaml
+from_number: "+441234567890"
+to_number: "+447123456789"
+locations:
+  - label: Home
+    scraper: bracknell
+    postcode: "RG12 1AB"
+    address_code: "123456"
+    collection_day: tuesday
+  - label: Office
+    scraper: bracknell
+    postcode: "RG42 2XY"
+    address_code: "789012"
+    collection_day: thursday
+```
+
+#### Config Fields
+
+| Field | Required | Description |
+|-------|----------|-------------|
+| `from_number` | Yes | Twilio phone number to send SMS from |
+| `to_number` | Yes | Phone number to send SMS notifications to |
+| `locations` | Yes | List of locations to monitor (at least one) |
+
+#### Location Fields
+
+| Field | Required | Description |
+|-------|----------|-------------|
+| `label` | Yes | Display name for the location (used in SMS messages) |
+| `scraper` | Yes | Scraper to use (e.g., `bracknell`) |
+| `postcode` | Yes | Postcode to look up |
+| `address_code` | Yes | Address code from the council website |
+| `collection_day` | Yes | Regular collection day name (e.g., `tuesday`) |
+
+### Available Scrapers
+
+| Name | Council |
+|------|---------|
+| `bracknell` | Bracknell Forest Council |
 
 ### Environment Variables
 
@@ -74,29 +102,21 @@ docker build -t bin-notifier .
 
 #### Application Configuration
 
-All command line flags can also be set via environment variables. CLI flags take precedence over environment variables.
-
-| Variable | Required | Description |
-|----------|----------|-------------|
-| `BN_POSTCODE` | Yes | The postcode to scrape bin times for |
-| `BN_ADDRESS_CODE` | Yes | The address code from the council website |
-| `BN_REGULAR_COLLECTION_DAY` | Yes | Regular collection day (0=Sunday, 1=Monday, ..., 6=Saturday) |
-| `BN_FROM_NUMBER` | Yes | Twilio phone number to send SMS from |
-| `BN_TO_NUMBER` | Yes | Phone number to send SMS notifications to |
-| `BN_DRY_RUN` | No | Set to `true` to run without sending SMS |
-| `BN_TODAY_DATE` | No | Override today's date (format: YYYY-MM-DD) |
+| Variable | Description |
+|----------|-------------|
+| `BN_CONFIG_FILE` | Path to YAML config file (alternative to `-c` flag) |
+| `BN_DRY_RUN` | Set to `true` to run without sending SMS |
+| `BN_TODAY_DATE` | Override today's date (format: YYYY-MM-DD) |
 
 ### Command Line Flags
 
 | Flag | Short | Env Var | Required | Description |
 |------|-------|---------|----------|-------------|
-| `--postcode` | `-p` | `BN_POSTCODE` | Yes | The postcode to scrape bin times for |
-| `--addressCode` | `-a` | `BN_ADDRESS_CODE` | Yes | The address code from the council website |
-| `--regularcollectionday` | `-r` | `BN_REGULAR_COLLECTION_DAY` | Yes | Regular collection day (0=Sunday, 1=Monday, ..., 6=Saturday) |
-| `--fromnumber` | `-f` | `BN_FROM_NUMBER` | Yes | Twilio phone number to send SMS from |
-| `--tonumber` | `-n` | `BN_TO_NUMBER` | Yes | Phone number to send SMS notifications to |
-| `--dryrun` | `-x` | `BN_DRY_RUN` | No | Run without sending SMS (for testing) |
-| `--todaydate` | `-d` | `BN_TODAY_DATE` | No | Override today's date (format: YYYY-MM-DD) |
+| `--config` | `-c` | `BN_CONFIG_FILE` | Yes | Path to YAML config file |
+| `--dryrun` | `-x` | `BN_DRY_RUN` | No | Run without sending SMS |
+| `--todaydate` | `-d` | `BN_TODAY_DATE` | No | Override today's date (YYYY-MM-DD) |
+
+CLI flags take precedence over environment variables.
 
 ### Finding Your Address Code
 
@@ -112,12 +132,7 @@ All command line flags can also be set via environment variables. CLI flags take
 export TWILIO_ACCOUNT_SID="your_account_sid"
 export TWILIO_AUTH_TOKEN="your_auth_token"
 
-./bin-notifier \
-  -p "RG12 1AB" \
-  -a "123456" \
-  -r 2 \
-  -f "+441234567890" \
-  -n "+447123456789"
+./bin-notifier -c config.yaml
 ```
 
 ### Dry Run Mode
@@ -125,13 +140,7 @@ export TWILIO_AUTH_TOKEN="your_auth_token"
 Test the scraping without sending SMS:
 
 ```bash
-./bin-notifier \
-  -p "RG12 1AB" \
-  -a "123456" \
-  -r 2 \
-  -f "+441234567890" \
-  -n "+447123456789" \
-  -x
+./bin-notifier -c config.yaml -x
 ```
 
 ### Override Today's Date
@@ -139,13 +148,29 @@ Test the scraping without sending SMS:
 Useful for testing specific scenarios:
 
 ```bash
-./bin-notifier \
-  -p "RG12 1AB" \
-  -a "123456" \
-  -r 2 \
-  -f "+441234567890" \
-  -n "+447123456789" \
-  -d "2024-01-15"
+./bin-notifier -c config.yaml -d "2024-01-15"
+```
+
+### Docker
+
+```bash
+docker run --rm \
+  -e TWILIO_ACCOUNT_SID="your_account_sid" \
+  -e TWILIO_AUTH_TOKEN="your_auth_token" \
+  -v /path/to/config.yaml:/config.yaml:ro \
+  ghcr.io/stebennett/bin-notifier:latest \
+  -c /config.yaml
+```
+
+Dry-run with Docker:
+
+```bash
+docker run --rm \
+  -e TWILIO_ACCOUNT_SID=test \
+  -e TWILIO_AUTH_TOKEN=test \
+  -v /path/to/config.yaml:/config.yaml:ro \
+  ghcr.io/stebennett/bin-notifier:latest \
+  -c /config.yaml -x
 ```
 
 ### Scheduling with Cron
@@ -153,7 +178,7 @@ Useful for testing specific scenarios:
 Run daily at 6 PM to notify about tomorrow's collections:
 
 ```bash
-0 18 * * * /path/to/bin-notifier -p "RG12 1AB" -a "123456" -r 2 -f "+441234567890" -n "+447123456789"
+0 18 * * * /path/to/bin-notifier -c /path/to/config.yaml
 ```
 
 ## Architecture
@@ -165,9 +190,9 @@ bin-notifier/
 │   └── main_test.go       # Integration tests
 ├── pkg/
 │   ├── clients/           # External service clients
-│   │   ├── twilioclient.go      # Twilio SMS client
+│   │   ├── twilioclient.go
 │   │   └── twilioclient_test.go
-│   ├── config/            # CLI configuration parsing
+│   ├── config/            # YAML config + CLI flag parsing
 │   │   ├── config.go
 │   │   └── config_test.go
 │   ├── dateutil/          # Date utilities
@@ -177,7 +202,8 @@ bin-notifier/
 │   │   ├── regexp.go
 │   │   └── regexp_test.go
 │   └── scraper/           # Web scraping logic
-│       ├── scraper.go
+│       ├── scraper.go     # Interface + registry
+│       ├── bracknell.go   # Bracknell Forest Council scraper
 │       └── scraper_test.go
 └── .github/workflows/     # CI/CD pipelines
     ├── ci.yml             # Build and test on PRs
@@ -186,10 +212,13 @@ bin-notifier/
 
 ### Application Flow
 
-1. **Configuration** - Parse CLI arguments and environment variables
-2. **Scraping** - Use headless Chrome to navigate the council website and extract collection dates
-3. **Date Matching** - Compare scraped dates against tomorrow's date
-4. **Notification** - Send SMS via Twilio if collections are due or it's a regular collection day with no scheduled collections
+1. **Configuration** — Parse CLI flags, load YAML config file
+2. **Per-Location Processing** — For each location in the config:
+   a. Resolve the scraper by name from the registry
+   b. Use headless Chrome to scrape collection dates from the council website
+   c. Compare scraped dates against tomorrow's date
+   d. Send SMS via Twilio if collections are due or it's a regular collection day with no scheduled collections
+3. **Partial Failure** — If one location fails, processing continues for remaining locations; exits non-zero if any location had errors
 
 ## Development
 
@@ -224,7 +253,7 @@ go test -cover ./...
 |---------|---------|
 | [chromedp](https://github.com/chromedp/chromedp) | Headless Chrome automation |
 | [twilio-go](https://github.com/twilio/twilio-go) | Twilio SDK for SMS |
-| [go-flags](https://github.com/jessevdk/go-flags) | CLI argument parsing |
+| [yaml.v3](https://gopkg.in/yaml.v3) | YAML config file parsing |
 | [testify](https://github.com/stretchr/testify) | Test assertions |
 
 ## CI/CD

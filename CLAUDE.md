@@ -8,14 +8,14 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 # Build the application
 go build -o bin-notifier ./cmd/notifier
 
-# Run the application (requires environment variables or flags)
-go run cmd/notifier/main.go -p <POSTCODE> -a <ADDRESS_CODE> -f <FROM_NUMBER> -n <TO_NUMBER> -r <COLLECTION_DAY>
+# Run the application (requires config.yaml)
+go run cmd/notifier/main.go -c config.yaml
 
 # Run with dry-run mode (no SMS sent)
-go run cmd/notifier/main.go -p <POSTCODE> -a <ADDRESS_CODE> -f <FROM_NUMBER> -n <TO_NUMBER> -r <COLLECTION_DAY> -x
+go run cmd/notifier/main.go -c config.yaml -x
 
 # Run with a specific date (for testing date logic)
-go run cmd/notifier/main.go -p <POSTCODE> -a <ADDRESS_CODE> -f <FROM_NUMBER> -n <TO_NUMBER> -r <COLLECTION_DAY> -d 2024-01-15
+go run cmd/notifier/main.go -c config.yaml -d 2024-01-15
 
 # Run tests
 go test ./...
@@ -30,7 +30,8 @@ docker build -t bin-notifier .
 docker run --rm \
   -e TWILIO_ACCOUNT_SID=test \
   -e TWILIO_AUTH_TOKEN=test \
-  bin-notifier -p <POSTCODE> -a <ADDRESS_CODE> -f <FROM_NUMBER> -n <TO_NUMBER> -r <COLLECTION_DAY> -x
+  -v /path/to/config.yaml:/config.yaml:ro \
+  bin-notifier -c /config.yaml -x
 ```
 
 ## Prerequisites
@@ -44,11 +45,7 @@ docker run --rm \
 - `TWILIO_AUTH_TOKEN` - Twilio auth token
 
 **Application config (alternative to CLI flags):**
-- `BN_POSTCODE` - Postcode to scrape
-- `BN_ADDRESS_CODE` - Address code from council website
-- `BN_REGULAR_COLLECTION_DAY` - Regular collection day (0-6)
-- `BN_FROM_NUMBER` - Twilio sender number
-- `BN_TO_NUMBER` - Recipient number
+- `BN_CONFIG_FILE` - Path to YAML config file
 - `BN_DRY_RUN` - Set to `true` for dry-run mode
 - `BN_TODAY_DATE` - Override today's date (YYYY-MM-DD)
 
@@ -59,17 +56,17 @@ CLI flags take precedence over environment variables.
 This is a Go application that scrapes bin collection schedules from the Bracknell Forest Council website and sends SMS notifications via Twilio when collections are due tomorrow.
 
 **Flow:**
-1. `cmd/notifier/main.go` - Entry point that orchestrates the workflow
-2. `pkg/scraper/` - Uses chromedp (headless Chrome) to scrape collection dates from the council website
+1. `cmd/notifier/main.go` - Entry point, parses flags, loads config, loops over locations
+2. `pkg/scraper/` - Scraper interface + registry + council-specific implementations (e.g., Bracknell)
 3. `pkg/clients/` - Twilio client for sending SMS notifications
-4. `pkg/config/` - CLI argument parsing using go-flags
-5. `pkg/dateutil/` - Date comparison and parsing utilities
+4. `pkg/config/` - YAML config file loading + CLI flag parsing
+5. `pkg/dateutil/` - Date comparison, parsing, and weekday name utilities
 6. `pkg/regexp/` - Helper for extracting named regex groups
 
 **Key dependencies:**
 - `chromedp` - Headless Chrome automation for web scraping
 - `twilio-go` - Twilio SDK for SMS
-- `go-flags` - CLI argument parsing
+- `yaml.v3` - YAML config file parsing
 - `testify` - Test assertions
 
 ## GitHub Actions
