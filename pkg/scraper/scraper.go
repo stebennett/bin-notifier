@@ -19,6 +19,8 @@ func NewScraper(name string) (BinScraper, error) {
 	switch strings.ToLower(name) {
 	case "bracknell":
 		return &BracknellScraper{}, nil
+	case "wokingham":
+		return &WokinghamScraper{}, nil
 	default:
 		return nil, fmt.Errorf("unknown scraper: %q", name)
 	}
