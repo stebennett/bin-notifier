@@ -3,9 +3,9 @@ FROM golang:1.26-alpine AS builder
 
 WORKDIR /app
 
-# Copy module files and vendor directory
+# Copy module files and download dependencies
 COPY go.mod go.sum ./
-COPY vendor/ vendor/
+RUN go mod download
 
 # Copy source code
 COPY cmd/ cmd/
