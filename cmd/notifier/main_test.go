@@ -71,8 +71,8 @@ func createTestConfig() config.Config {
 }
 
 func TestNotifier_SendsSmsWhenCollectionTomorrow(t *testing.T) {
-	today := time.Date(2024, 1, 15, 10, 0, 0, 0, time.UTC) // Monday
-	tomorrow := today.AddDate(0, 0, 1)                       // Tuesday
+	today := time.Date(2024, 1, 15, 10, 0, 0, 0, time.UTC)    // Monday
+	tomorrow := time.Date(2024, 1, 16, 0, 0, 0, 0, time.UTC)  // Tuesday
 
 	mockScr := &mockScraper{
 		binTimes: []scraper.BinTime{
@@ -104,8 +104,8 @@ func TestNotifier_SendsSmsWhenCollectionTomorrow(t *testing.T) {
 }
 
 func TestNotifier_MessagePrefixedWithLabel(t *testing.T) {
-	today := time.Date(2024, 1, 15, 10, 0, 0, 0, time.UTC)
-	tomorrow := today.AddDate(0, 0, 1)
+	today := time.Date(2024, 1, 15, 10, 0, 0, 0, time.UTC)   // Monday
+	tomorrow := time.Date(2024, 1, 16, 0, 0, 0, 0, time.UTC)  // Tuesday
 
 	mockScr := &mockScraper{
 		binTimes: []scraper.BinTime{
@@ -128,8 +128,8 @@ func TestNotifier_MessagePrefixedWithLabel(t *testing.T) {
 }
 
 func TestNotifier_SendsSmsOnRegularDayNoCollections(t *testing.T) {
-	today := time.Date(2024, 1, 15, 10, 0, 0, 0, time.UTC) // Monday
-	nextWeek := today.AddDate(0, 0, 7)
+	today := time.Date(2024, 1, 15, 10, 0, 0, 0, time.UTC)   // Monday
+	nextWeek := time.Date(2024, 1, 22, 0, 0, 0, 0, time.UTC)  // Monday +1 week
 
 	mockScr := &mockScraper{
 		binTimes: []scraper.BinTime{
@@ -156,8 +156,8 @@ func TestNotifier_SendsSmsOnRegularDayNoCollections(t *testing.T) {
 }
 
 func TestNotifier_NoSmsWhenNoCollectionsAndNotRegularDay(t *testing.T) {
-	today := time.Date(2024, 1, 15, 10, 0, 0, 0, time.UTC) // Monday
-	nextWeek := today.AddDate(0, 0, 7)
+	today := time.Date(2024, 1, 15, 10, 0, 0, 0, time.UTC)   // Monday
+	nextWeek := time.Date(2024, 1, 22, 0, 0, 0, 0, time.UTC)  // Monday +1 week
 
 	mockScr := &mockScraper{
 		binTimes: []scraper.BinTime{
@@ -187,8 +187,8 @@ func TestNotifier_NoSmsWhenNoCollectionsAndNotRegularDay(t *testing.T) {
 }
 
 func TestNotifier_ScraperErrorContinuesOtherLocations(t *testing.T) {
-	today := time.Date(2024, 1, 15, 10, 0, 0, 0, time.UTC)
-	tomorrow := today.AddDate(0, 0, 1)
+	today := time.Date(2024, 1, 15, 10, 0, 0, 0, time.UTC)   // Monday
+	tomorrow := time.Date(2024, 1, 16, 0, 0, 0, 0, time.UTC)  // Tuesday
 
 	failScr := &mockScraper{err: errors.New("scraper failed")}
 	okScr := &mockScraper{
@@ -227,8 +227,8 @@ func TestNotifier_ScraperErrorContinuesOtherLocations(t *testing.T) {
 }
 
 func TestNotifier_SmsErrorRecordedInResult(t *testing.T) {
-	today := time.Date(2024, 1, 15, 10, 0, 0, 0, time.UTC)
-	tomorrow := today.AddDate(0, 0, 1)
+	today := time.Date(2024, 1, 15, 10, 0, 0, 0, time.UTC)   // Monday
+	tomorrow := time.Date(2024, 1, 16, 0, 0, 0, 0, time.UTC)  // Tuesday
 
 	mockScr := &mockScraper{
 		binTimes: []scraper.BinTime{
@@ -298,8 +298,8 @@ func TestNotifier_InvalidTodayDateReturnsError(t *testing.T) {
 }
 
 func TestNotifier_DryRunPassedToSmsClient(t *testing.T) {
-	today := time.Date(2024, 1, 15, 10, 0, 0, 0, time.UTC)
-	tomorrow := today.AddDate(0, 0, 1)
+	today := time.Date(2024, 1, 15, 10, 0, 0, 0, time.UTC)   // Monday
+	tomorrow := time.Date(2024, 1, 16, 0, 0, 0, 0, time.UTC)  // Tuesday
 
 	mockScr := &mockScraper{
 		binTimes: []scraper.BinTime{
@@ -325,8 +325,8 @@ func TestNotifier_DryRunPassedToSmsClient(t *testing.T) {
 }
 
 func TestNotifier_MultipleLocations(t *testing.T) {
-	today := time.Date(2024, 1, 15, 10, 0, 0, 0, time.UTC)
-	tomorrow := today.AddDate(0, 0, 1)
+	today := time.Date(2024, 1, 15, 10, 0, 0, 0, time.UTC)   // Monday
+	tomorrow := time.Date(2024, 1, 16, 0, 0, 0, 0, time.UTC)  // Tuesday
 
 	homeScraper := &mockScraper{
 		binTimes: []scraper.BinTime{
@@ -395,9 +395,8 @@ func TestNotifier_UnknownScraperRecordsError(t *testing.T) {
 }
 
 func TestNotifier_FortnightlyOnWeekSendsWarning(t *testing.T) {
-	refDate := time.Date(2026, 1, 2, 0, 0, 0, 0, time.UTC) // Friday
-	today := refDate.AddDate(0, 0, 13)                       // Thursday, 2 weeks - 1 day later
-	// tomorrow is Friday, 2 weeks after reference = on week
+	today := time.Date(2026, 1, 15, 0, 0, 0, 0, time.UTC) // Thursday
+	// tomorrow is Friday 2026-01-16, exactly 2 weeks after reference date 2026-01-02 = on week
 
 	mockScr := &mockScraper{
 		binTimes: []scraper.BinTime{},
@@ -440,9 +439,8 @@ func TestNotifier_FortnightlyOnWeekSendsWarning(t *testing.T) {
 }
 
 func TestNotifier_FortnightlyOffWeekNoMessage(t *testing.T) {
-	refDate := time.Date(2026, 1, 2, 0, 0, 0, 0, time.UTC) // Friday
-	today := refDate.AddDate(0, 0, 6)                        // Thursday, 1 week - 1 day later
-	// tomorrow is Friday, 1 week after reference = off week for fortnightly
+	today := time.Date(2026, 1, 8, 0, 0, 0, 0, time.UTC) // Thursday
+	// tomorrow is Friday 2026-01-09, 1 week after reference date 2026-01-02 = off week for fortnightly
 
 	mockScr := &mockScraper{
 		binTimes: []scraper.BinTime{},
@@ -485,8 +483,8 @@ func TestNotifier_FortnightlyOffWeekNoMessage(t *testing.T) {
 }
 
 func TestNotifier_MultipleCollectionDaysWarnings(t *testing.T) {
-	today := time.Date(2024, 1, 15, 10, 0, 0, 0, time.UTC) // Monday
-	nextWeek := today.AddDate(0, 0, 7)
+	today := time.Date(2024, 1, 15, 10, 0, 0, 0, time.UTC)   // Monday
+	nextWeek := time.Date(2024, 1, 22, 0, 0, 0, 0, time.UTC)  // Monday +1 week
 
 	mockScr := &mockScraper{
 		binTimes: []scraper.BinTime{
