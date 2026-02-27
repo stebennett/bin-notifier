@@ -4,10 +4,10 @@ A Go application that scrapes bin collection schedules from council websites and
 
 ## Features
 
+- **Multi-location support** — configure multiple addresses in a single YAML config file
+- **Pluggable council scrapers** — extensible scraper interface with a registry for adding new councils
 - Scrapes bin collection dates using headless Chrome automation
 - Sends SMS notifications for upcoming collections via Twilio
-- **Multi-location support** — monitor multiple addresses with a single config file
-- **Pluggable scrapers** — extensible scraper registry for different council websites
 - Supports multiple bin types (General Waste, Recycling, Food, Garden)
 - Alerts on regular collection days even when no collections are scheduled
 - Partial failure handling — continues processing remaining locations if one fails
@@ -49,80 +49,68 @@ docker pull ghcr.io/stebennett/bin-notifier:latest
 
 ### YAML Config File
 
-Create a `config.yaml` file with your locations and notification settings:
+Bin Notifier uses a YAML configuration file to define Twilio phone numbers and one or more locations to monitor. Create a `config.yaml` file:
 
 ```yaml
 from_number: "+441234567890"
 to_number: "+447123456789"
+
 locations:
-  - label: Home
-    scraper: bracknell
+  - label: "Home"
+    scraper: "bracknell"
     postcode: "RG12 1AB"
     address_code: "123456"
-    collection_day: tuesday
-  - label: Office
-    scraper: bracknell
-    postcode: "RG42 2XY"
-    address_code: "789012"
-    collection_day: thursday
+    collection_day: "Tuesday"
+
+  - label: "Office"
+    scraper: "bracknell"
+    postcode: "RG12 9ZZ"
+    address_code: "654321"
+    collection_day: "Friday"
 ```
 
-#### Config Fields
+#### Location fields
 
 | Field | Required | Description |
 |-------|----------|-------------|
-| `from_number` | Yes | Twilio phone number to send SMS from |
-| `to_number` | Yes | Phone number to send SMS notifications to |
-| `locations` | Yes | List of locations to monitor (at least one) |
+| `label` | Yes | A human-readable name for the location (used in SMS messages and logs) |
+| `scraper` | Yes | Which council scraper to use (see available scrapers below) |
+| `postcode` | Yes | The postcode to look up on the council website |
+| `address_code` | Yes | The address code from the council website |
+| `collection_day` | Yes | Regular collection day name (e.g. `Monday`, `Tuesday`, ..., `Sunday`) |
 
-#### Location Fields
+#### Available scrapers
 
-| Field | Required | Description |
-|-------|----------|-------------|
-| `label` | Yes | Display name for the location (used in SMS messages) |
-| `scraper` | Yes | Scraper to use (e.g., `bracknell`) |
-| `postcode` | Yes | Postcode to look up |
-| `address_code` | Yes | Address code from the council website |
-| `collection_day` | Yes | Regular collection day name (e.g., `tuesday`) |
-
-### Available Scrapers
-
-| Name | Council |
-|------|---------|
-| `bracknell` | Bracknell Forest Council |
-
-### Environment Variables
-
-#### Twilio Credentials
-
-| Variable | Required | Description |
-|----------|----------|-------------|
-| `TWILIO_ACCOUNT_SID` | Yes | Your Twilio account SID |
-| `TWILIO_AUTH_TOKEN` | Yes | Your Twilio auth token |
-
-#### Application Configuration
-
-| Variable | Description |
-|----------|-------------|
-| `BN_CONFIG_FILE` | Path to YAML config file (alternative to `-c` flag) |
-| `BN_DRY_RUN` | Set to `true` to run without sending SMS |
-| `BN_TODAY_DATE` | Override today's date (format: YYYY-MM-DD) |
-
-### Command Line Flags
-
-| Flag | Short | Env Var | Required | Description |
-|------|-------|---------|----------|-------------|
-| `--config` | `-c` | `BN_CONFIG_FILE` | Yes | Path to YAML config file |
-| `--dryrun` | `-x` | `BN_DRY_RUN` | No | Run without sending SMS |
-| `--todaydate` | `-d` | `BN_TODAY_DATE` | No | Override today's date (YYYY-MM-DD) |
-
-CLI flags take precedence over environment variables.
+| Scraper | Council | Status |
+|---------|---------|--------|
+| `bracknell` | Bracknell Forest Council | Implemented |
+| `wokingham` | Wokingham Borough Council | Stubbed (not yet implemented) |
 
 ### Finding Your Address Code
 
 1. Visit the [Bracknell Forest Council bin collection page](https://www.bracknell-forest.gov.uk/bins-and-recycling/bin-collection-days)
 2. Enter your postcode and select your address
 3. The address code appears in the URL or can be found in the page source
+
+### CLI Flags
+
+| Flag | Short | Env Var | Required | Description |
+|------|-------|---------|----------|-------------|
+| `--config` | `-c` | `BN_CONFIG_FILE` | Yes | Path to the YAML config file |
+| `--dryrun` | `-x` | `BN_DRY_RUN` | No | Run without sending SMS (for testing) |
+| `--todaydate` | `-d` | `BN_TODAY_DATE` | No | Override today's date (format: YYYY-MM-DD) |
+
+### Environment Variables
+
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `TWILIO_ACCOUNT_SID` | Yes | Your Twilio account SID |
+| `TWILIO_AUTH_TOKEN` | Yes | Your Twilio auth token |
+| `BN_CONFIG_FILE` | No | Path to config file (alternative to `-c` flag) |
+| `BN_DRY_RUN` | No | Set to `true` to run without sending SMS |
+| `BN_TODAY_DATE` | No | Override today's date (format: YYYY-MM-DD) |
+
+CLI flags take precedence over environment variables.
 
 ## Usage
 
@@ -148,10 +136,12 @@ Test the scraping without sending SMS:
 Useful for testing specific scenarios:
 
 ```bash
-./bin-notifier -c config.yaml -d "2024-01-15"
+./bin-notifier -c config.yaml -d "2026-01-15"
 ```
 
 ### Docker
+
+Run with Docker by mounting your config file into the container:
 
 ```bash
 docker run --rm \
@@ -173,6 +163,12 @@ docker run --rm \
   -c /config.yaml -x
 ```
 
+Build locally:
+
+```bash
+docker build -t bin-notifier .
+```
+
 ### Scheduling with Cron
 
 Run daily at 6 PM to notify about tomorrow's collections:
@@ -186,25 +182,26 @@ Run daily at 6 PM to notify about tomorrow's collections:
 ```
 bin-notifier/
 ├── cmd/notifier/          # Application entry point
-│   ├── main.go            # CLI setup and orchestration
+│   ├── main.go            # CLI setup, Notifier orchestration
 │   └── main_test.go       # Integration tests
 ├── pkg/
 │   ├── clients/           # External service clients
 │   │   ├── twilioclient.go
 │   │   └── twilioclient_test.go
-│   ├── config/            # YAML config + CLI flag parsing
-│   │   ├── config.go
+│   ├── config/            # Configuration loading
+│   │   ├── config.go      # YAML config + CLI flag parsing
 │   │   └── config_test.go
 │   ├── dateutil/          # Date utilities
-│   │   ├── dateutil.go
+│   │   ├── dateutil.go    # Date matching and weekday parsing
 │   │   └── dateutil_test.go
 │   ├── regexp/            # Regex utilities
 │   │   ├── regexp.go
 │   │   └── regexp_test.go
 │   └── scraper/           # Web scraping logic
-│       ├── scraper.go     # Interface + registry
+│       ├── scraper.go     # BinScraper interface + registry
+│       ├── scraper_test.go
 │       ├── bracknell.go   # Bracknell Forest Council scraper
-│       └── scraper_test.go
+│       └── wokingham.go   # Wokingham Borough Council scraper (stub)
 └── .github/workflows/     # CI/CD pipelines
     ├── ci.yml             # Build and test on PRs
     └── release.yml        # Release automation
@@ -212,13 +209,13 @@ bin-notifier/
 
 ### Application Flow
 
-1. **Configuration** — Parse CLI flags, load YAML config file
-2. **Per-Location Processing** — For each location in the config:
-   a. Resolve the scraper by name from the registry
-   b. Use headless Chrome to scrape collection dates from the council website
-   c. Compare scraped dates against tomorrow's date
-   d. Send SMS via Twilio if collections are due or it's a regular collection day with no scheduled collections
-3. **Partial Failure** — If one location fails, processing continues for remaining locations; exits non-zero if any location had errors
+1. **Configuration** — Parse CLI flags, then load the YAML config file containing phone numbers and locations
+2. **Location loop** — For each configured location:
+   1. Look up the scraper by name from the registry
+   2. Use headless Chrome to navigate the council website and extract collection dates
+   3. Compare scraped dates against tomorrow's date
+3. **Notification** — Send SMS via Twilio for each location where collections are due or it is a regular collection day with no scheduled collections
+4. **Partial Failure** — If one location fails, processing continues for remaining locations; exits non-zero if any location had errors
 
 ## Development
 

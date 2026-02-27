@@ -53,17 +53,68 @@ CLI flags take precedence over environment variables.
 
 ## Architecture
 
-This is a Go application that scrapes bin collection schedules from the Bracknell Forest Council website and sends SMS notifications via Twilio when collections are due tomorrow.
+This is a Go application that scrapes bin collection schedules from council websites and sends SMS notifications via Twilio when collections are due tomorrow. It supports multiple locations with pluggable council-specific scrapers.
 
-**Flow:**
-1. `cmd/notifier/main.go` - Entry point, parses flags, loads config, loops over locations
-2. `pkg/scraper/` - Scraper interface + registry + council-specific implementations (e.g., Bracknell)
-3. `pkg/clients/` - Twilio client for sending SMS notifications
-4. `pkg/config/` - YAML config file loading + CLI flag parsing
-5. `pkg/dateutil/` - Date comparison, parsing, and weekday name utilities
-6. `pkg/regexp/` - Helper for extracting named regex groups
+### Project Structure
 
-**Key dependencies:**
+```
+cmd/notifier/
+  main.go          - Entry point + Notifier struct (orchestrates the workflow)
+  main_test.go     - Tests using mock scrapers and SMS client
+
+pkg/config/
+  config.go        - Flags struct + ParseFlags() for CLI flags (-c, -x, -d)
+                     Config/Location structs + LoadConfig() for YAML parsing
+                     Uses stdlib flag package (not go-flags)
+  config_test.go
+
+pkg/scraper/
+  scraper.go       - BinScraper interface, BinTime struct, NewScraper() registry
+  bracknell.go     - BracknellScraper: headless Chrome scraper for Bracknell Forest Council
+  wokingham.go     - WokinghamScraper: stub (returns "not implemented")
+  scraper_test.go
+
+pkg/clients/
+  twilioclient.go  - TwilioClient for sending SMS via Twilio API
+  twilioclient_test.go
+
+pkg/dateutil/
+  dateutil.go      - IsDateMatching(), AsTime(), AsTimeWithMonth(), ParseWeekday()
+  dateutil_test.go
+
+pkg/regexp/
+  regexp.go        - FindNamedMatches() helper for named capture groups
+  regexp_test.go
+```
+
+### Application Flow
+
+1. `main()` calls `config.ParseFlags()` then `config.LoadConfig()` to load YAML config
+2. `Notifier.Run()` loops over `cfg.Locations`, calling `processLocation()` for each
+3. `processLocation()` resolves a scraper via `ScraperFactory`, scrapes bin times, compares against tomorrow's date, and sends SMS if needed
+4. SMS messages are prefixed with the location label (e.g., "Home: General Waste, Recycling collection tomorrow")
+5. Partial failure: if one location fails, remaining locations still process; exit non-zero if any errors
+
+### Key Interfaces (in cmd/notifier/main.go)
+
+- `BinScraper` - `ScrapeBinTimes(postcode, address) ([]BinTime, error)`
+- `SMSClient` - `SendSms(from, to, body, dryRun) error`
+- `ScraperFactory` - function type `func(name string) (BinScraper, error)`
+
+### Config Structure (pkg/config)
+
+- `Flags` - CLI flags: ConfigFile (`-c`), DryRun (`-x`), TodayDate (`-d`)
+- `Config` - YAML top-level: FromNumber, ToNumber, Locations[], DryRun, TodayDate
+- `Location` - Per-location: Label, Scraper, PostCode, AddressCode, CollectionDay (time.Weekday)
+
+### Adding a New Scraper
+
+1. Create `pkg/scraper/<council>.go` implementing `BinScraper` interface
+2. Add a case to the `NewScraper()` switch in `pkg/scraper/scraper.go`
+3. No changes needed to `cmd/notifier/main.go`
+
+## Key Dependencies
+
 - `chromedp` - Headless Chrome automation for web scraping
 - `twilio-go` - Twilio SDK for SMS
 - `yaml.v3` - YAML config file parsing
