@@ -69,12 +69,16 @@ locations:
         types: ["Garden Waste"]
 
   - label: "Office"
-    scraper: "bracknell"
-    postcode: "RG12 9ZZ"
-    address_code: "654321"
+    scraper: "wokingham"
+    postcode: "RG45 6EF"
+    address_code: "120033"
     collection_days:
       - day: "Friday"
-        types: ["General Waste", "Recycling"]
+        types: ["Household waste", "Food waste"]
+      - day: "Friday"
+        every_n_weeks: 2
+        reference_date: "2026-02-27"
+        types: ["Recycling"]
 ```
 
 #### Location fields
@@ -101,13 +105,19 @@ locations:
 | Scraper | Council | Status |
 |---------|---------|--------|
 | `bracknell` | Bracknell Forest Council | Implemented |
-| `wokingham` | Wokingham Borough Council | Stubbed (not yet implemented) |
+| `wokingham` | Wokingham Borough Council | Implemented |
 
 ### Finding Your Address Code
 
+**Bracknell Forest Council:**
 1. Visit the [Bracknell Forest Council bin collection page](https://www.bracknell-forest.gov.uk/bins-and-recycling/bin-collection-days)
 2. Enter your postcode and select your address
 3. The address code appears in the URL or can be found in the page source
+
+**Wokingham Borough Council:**
+1. Visit the [Wokingham bin collection page](https://www.wokingham.gov.uk/rubbish-and-recycling/waste-collection/find-your-bin-collection-day)
+2. Enter your postcode and click "Find Address"
+3. Inspect the address dropdown — each option's `value` attribute is the UPRN (e.g. `120033`). Use this as your `address_code`.
 
 ### CLI Flags
 
@@ -218,7 +228,7 @@ bin-notifier/
 │       ├── scraper.go     # BinScraper interface + registry
 │       ├── scraper_test.go
 │       ├── bracknell.go   # Bracknell Forest Council scraper
-│       └── wokingham.go   # Wokingham Borough Council scraper (stub)
+│       └── wokingham.go   # Wokingham Borough Council scraper
 └── .github/workflows/     # CI/CD pipelines
     ├── ci.yml             # Build and test on PRs
     └── release.yml        # Release automation
