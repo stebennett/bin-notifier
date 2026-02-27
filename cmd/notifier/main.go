@@ -97,18 +97,40 @@ func (n *Notifier) processLocation(cfg config.Config, loc config.Location, today
 			return result
 		}
 		result.SMSSent = true
-	} else if tomorrow.Weekday() == loc.CollectionDay {
-		result.Message = loc.Label + ": Tomorrow is a regular bin collection day, but there are no collections."
-		log.Printf("[%s] %s", loc.Label, result.Message)
-
-		err = n.SMSClient.SendSms(cfg.FromNumber, cfg.ToNumber, result.Message, cfg.DryRun)
-		if err != nil {
-			result.Error = fmt.Errorf("[%s] SMS error: %w", loc.Label, err)
-			return result
-		}
-		result.SMSSent = true
 	} else {
-		log.Printf("[%s] No collections tomorrow as it's not a regular collection day", loc.Label)
+		for _, cd := range loc.CollectionDays {
+			if tomorrow.Weekday() != cd.Day {
+				continue
+			}
+			if cd.EveryNWeeks > 1 {
+				refDate, err := time.Parse("2006-01-02", cd.ReferenceDate)
+				if err != nil {
+					result.Error = fmt.Errorf("[%s] invalid reference_date in collection schedule: %w", loc.Label, err)
+					return result
+				}
+				if !dateutil.IsOnWeek(refDate, tomorrow, cd.EveryNWeeks) {
+					continue
+				}
+			}
+			msg := fmt.Sprintf("%s: Expected %s collection tomorrow (%s) but none scheduled.",
+				loc.Label, strings.Join(cd.Types, ", "), tomorrow.Weekday())
+			log.Printf("[%s] %s", loc.Label, msg)
+			if result.Message != "" {
+				result.Message += "; " + msg
+			} else {
+				result.Message = msg
+			}
+
+			err = n.SMSClient.SendSms(cfg.FromNumber, cfg.ToNumber, msg, cfg.DryRun)
+			if err != nil {
+				result.Error = fmt.Errorf("[%s] SMS error: %w", loc.Label, err)
+				return result
+			}
+			result.SMSSent = true
+		}
+		if !result.SMSSent {
+			log.Printf("[%s] No collections tomorrow and not an expected collection day", loc.Label)
+		}
 	}
 
 	return result
