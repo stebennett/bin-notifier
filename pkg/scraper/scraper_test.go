@@ -117,11 +117,26 @@ func TestNewScraper_Wokingham(t *testing.T) {
 	assert.IsType(t, &WokinghamScraper{}, s)
 }
 
-func TestWokinghamScraper_ReturnsNotImplemented(t *testing.T) {
-	s := &WokinghamScraper{}
-	_, err := s.ScrapeBinTimes("RG41 1AA", "12345")
-	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "not implemented")
+func TestWokinghamScrapeBinTimes_ValidationErrors(t *testing.T) {
+	scraper := &WokinghamScraper{}
+
+	t.Run("empty postcode returns error", func(t *testing.T) {
+		_, err := scraper.ScrapeBinTimes("", "123")
+		assert.Error(t, err)
+		assert.EqualError(t, err, "no postcode specified")
+	})
+
+	t.Run("empty address returns error", func(t *testing.T) {
+		_, err := scraper.ScrapeBinTimes("AB1 2CD", "")
+		assert.Error(t, err)
+		assert.EqualError(t, err, "no address specified")
+	})
+
+	t.Run("both empty returns postcode error first", func(t *testing.T) {
+		_, err := scraper.ScrapeBinTimes("", "")
+		assert.Error(t, err)
+		assert.EqualError(t, err, "no postcode specified")
+	})
 }
 
 func TestParseWokinghamCollection(t *testing.T) {
