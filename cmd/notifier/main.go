@@ -44,7 +44,8 @@ type NotificationResult struct {
 
 // Run executes the notification workflow for all locations in the config.
 func (n *Notifier) Run(cfg config.Config) []NotificationResult {
-	today := n.Clock()
+	now := n.Clock()
+	today := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, time.UTC)
 	if cfg.TodayDate != "" {
 		parsed, err := time.Parse("2006-01-02", cfg.TodayDate)
 		if err != nil {
