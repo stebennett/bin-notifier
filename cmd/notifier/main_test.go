@@ -54,19 +54,25 @@ func createTestConfig() config.Config {
 		ToNumber:   "+0987654321",
 		Locations: []config.Location{
 			{
-				Label:         "Home",
-				Scraper:       "bracknell",
-				PostCode:      "RG12 1AB",
-				AddressCode:   "12345",
-				CollectionDay: time.Tuesday,
+				Label:       "Home",
+				Scraper:     "bracknell",
+				PostCode:    "RG12 1AB",
+				AddressCode: "12345",
+				CollectionDays: []config.CollectionDay{
+					{
+						Day:         time.Tuesday,
+						Types:       []string{"General Waste", "Recycling"},
+						EveryNWeeks: 1,
+					},
+				},
 			},
 		},
 	}
 }
 
 func TestNotifier_SendsSmsWhenCollectionTomorrow(t *testing.T) {
-	today := time.Date(2024, 1, 15, 10, 0, 0, 0, time.UTC) // Monday
-	tomorrow := today.AddDate(0, 0, 1)                       // Tuesday
+	today := time.Date(2024, 1, 15, 10, 0, 0, 0, time.UTC)    // Monday
+	tomorrow := time.Date(2024, 1, 16, 0, 0, 0, 0, time.UTC)  // Tuesday
 
 	mockScr := &mockScraper{
 		binTimes: []scraper.BinTime{
@@ -98,8 +104,8 @@ func TestNotifier_SendsSmsWhenCollectionTomorrow(t *testing.T) {
 }
 
 func TestNotifier_MessagePrefixedWithLabel(t *testing.T) {
-	today := time.Date(2024, 1, 15, 10, 0, 0, 0, time.UTC)
-	tomorrow := today.AddDate(0, 0, 1)
+	today := time.Date(2024, 1, 15, 10, 0, 0, 0, time.UTC)   // Monday
+	tomorrow := time.Date(2024, 1, 16, 0, 0, 0, 0, time.UTC)  // Tuesday
 
 	mockScr := &mockScraper{
 		binTimes: []scraper.BinTime{
@@ -122,8 +128,8 @@ func TestNotifier_MessagePrefixedWithLabel(t *testing.T) {
 }
 
 func TestNotifier_SendsSmsOnRegularDayNoCollections(t *testing.T) {
-	today := time.Date(2024, 1, 15, 10, 0, 0, 0, time.UTC) // Monday
-	nextWeek := today.AddDate(0, 0, 7)
+	today := time.Date(2024, 1, 15, 10, 0, 0, 0, time.UTC)   // Monday
+	nextWeek := time.Date(2024, 1, 22, 0, 0, 0, 0, time.UTC)  // Monday +1 week
 
 	mockScr := &mockScraper{
 		binTimes: []scraper.BinTime{
@@ -139,21 +145,19 @@ func TestNotifier_SendsSmsOnRegularDayNoCollections(t *testing.T) {
 	}
 
 	cfg := createTestConfig()
-	cfg.Locations[0].CollectionDay = time.Tuesday // Tomorrow is Tuesday
 	results := notifier.Run(cfg)
 
 	assert.Len(t, results, 1)
 	r := results[0]
 	assert.Nil(t, r.Error)
 	assert.True(t, r.SMSSent)
-	assert.Contains(t, r.Message, "regular bin collection day")
-	assert.Contains(t, r.Message, "no collections")
+	assert.Contains(t, r.Message, "Expected General Waste, Recycling collection tomorrow (Tuesday) but none scheduled.")
 	assert.Equal(t, 0, len(r.Collections))
 }
 
 func TestNotifier_NoSmsWhenNoCollectionsAndNotRegularDay(t *testing.T) {
-	today := time.Date(2024, 1, 15, 10, 0, 0, 0, time.UTC) // Monday
-	nextWeek := today.AddDate(0, 0, 7)
+	today := time.Date(2024, 1, 15, 10, 0, 0, 0, time.UTC)   // Monday
+	nextWeek := time.Date(2024, 1, 22, 0, 0, 0, 0, time.UTC)  // Monday +1 week
 
 	mockScr := &mockScraper{
 		binTimes: []scraper.BinTime{
@@ -169,7 +173,9 @@ func TestNotifier_NoSmsWhenNoCollectionsAndNotRegularDay(t *testing.T) {
 	}
 
 	cfg := createTestConfig()
-	cfg.Locations[0].CollectionDay = time.Wednesday // Not Tuesday
+	cfg.Locations[0].CollectionDays = []config.CollectionDay{
+		{Day: time.Wednesday, Types: []string{"General Waste"}, EveryNWeeks: 1},
+	}
 	results := notifier.Run(cfg)
 
 	assert.Len(t, results, 1)
@@ -181,8 +187,8 @@ func TestNotifier_NoSmsWhenNoCollectionsAndNotRegularDay(t *testing.T) {
 }
 
 func TestNotifier_ScraperErrorContinuesOtherLocations(t *testing.T) {
-	today := time.Date(2024, 1, 15, 10, 0, 0, 0, time.UTC)
-	tomorrow := today.AddDate(0, 0, 1)
+	today := time.Date(2024, 1, 15, 10, 0, 0, 0, time.UTC)   // Monday
+	tomorrow := time.Date(2024, 1, 16, 0, 0, 0, 0, time.UTC)  // Tuesday
 
 	failScr := &mockScraper{err: errors.New("scraper failed")}
 	okScr := &mockScraper{
@@ -205,8 +211,8 @@ func TestNotifier_ScraperErrorContinuesOtherLocations(t *testing.T) {
 		FromNumber: "+1234567890",
 		ToNumber:   "+0987654321",
 		Locations: []config.Location{
-			{Label: "Home", Scraper: "bracknell", PostCode: "RG12 1AB", AddressCode: "12345", CollectionDay: time.Tuesday},
-			{Label: "Office", Scraper: "wokingham", PostCode: "RG42 2XY", AddressCode: "67890", CollectionDay: time.Tuesday},
+			{Label: "Home", Scraper: "bracknell", PostCode: "RG12 1AB", AddressCode: "12345", CollectionDays: []config.CollectionDay{{Day: time.Tuesday, Types: []string{"General Waste"}, EveryNWeeks: 1}}},
+			{Label: "Office", Scraper: "wokingham", PostCode: "RG42 2XY", AddressCode: "67890", CollectionDays: []config.CollectionDay{{Day: time.Tuesday, Types: []string{"General Waste"}, EveryNWeeks: 1}}},
 		},
 	}
 
@@ -221,8 +227,8 @@ func TestNotifier_ScraperErrorContinuesOtherLocations(t *testing.T) {
 }
 
 func TestNotifier_SmsErrorRecordedInResult(t *testing.T) {
-	today := time.Date(2024, 1, 15, 10, 0, 0, 0, time.UTC)
-	tomorrow := today.AddDate(0, 0, 1)
+	today := time.Date(2024, 1, 15, 10, 0, 0, 0, time.UTC)   // Monday
+	tomorrow := time.Date(2024, 1, 16, 0, 0, 0, 0, time.UTC)  // Tuesday
 
 	mockScr := &mockScraper{
 		binTimes: []scraper.BinTime{
@@ -292,8 +298,8 @@ func TestNotifier_InvalidTodayDateReturnsError(t *testing.T) {
 }
 
 func TestNotifier_DryRunPassedToSmsClient(t *testing.T) {
-	today := time.Date(2024, 1, 15, 10, 0, 0, 0, time.UTC)
-	tomorrow := today.AddDate(0, 0, 1)
+	today := time.Date(2024, 1, 15, 10, 0, 0, 0, time.UTC)   // Monday
+	tomorrow := time.Date(2024, 1, 16, 0, 0, 0, 0, time.UTC)  // Tuesday
 
 	mockScr := &mockScraper{
 		binTimes: []scraper.BinTime{
@@ -319,8 +325,8 @@ func TestNotifier_DryRunPassedToSmsClient(t *testing.T) {
 }
 
 func TestNotifier_MultipleLocations(t *testing.T) {
-	today := time.Date(2024, 1, 15, 10, 0, 0, 0, time.UTC)
-	tomorrow := today.AddDate(0, 0, 1)
+	today := time.Date(2024, 1, 15, 10, 0, 0, 0, time.UTC)   // Monday
+	tomorrow := time.Date(2024, 1, 16, 0, 0, 0, 0, time.UTC)  // Tuesday
 
 	homeScraper := &mockScraper{
 		binTimes: []scraper.BinTime{
@@ -347,8 +353,8 @@ func TestNotifier_MultipleLocations(t *testing.T) {
 		FromNumber: "+1234567890",
 		ToNumber:   "+0987654321",
 		Locations: []config.Location{
-			{Label: "Home", Scraper: "bracknell", PostCode: "RG12 1AB", AddressCode: "12345", CollectionDay: time.Tuesday},
-			{Label: "Office", Scraper: "wokingham", PostCode: "RG42 2XY", AddressCode: "67890", CollectionDay: time.Tuesday},
+			{Label: "Home", Scraper: "bracknell", PostCode: "RG12 1AB", AddressCode: "12345", CollectionDays: []config.CollectionDay{{Day: time.Tuesday, Types: []string{"General Waste"}, EveryNWeeks: 1}}},
+			{Label: "Office", Scraper: "wokingham", PostCode: "RG42 2XY", AddressCode: "67890", CollectionDays: []config.CollectionDay{{Day: time.Tuesday, Types: []string{"General Waste"}, EveryNWeeks: 1}}},
 		},
 	}
 
@@ -377,7 +383,7 @@ func TestNotifier_UnknownScraperRecordsError(t *testing.T) {
 		FromNumber: "+1234567890",
 		ToNumber:   "+0987654321",
 		Locations: []config.Location{
-			{Label: "Home", Scraper: "unknown", PostCode: "RG12 1AB", AddressCode: "12345", CollectionDay: time.Tuesday},
+			{Label: "Home", Scraper: "unknown", PostCode: "RG12 1AB", AddressCode: "12345", CollectionDays: []config.CollectionDay{{Day: time.Tuesday, Types: []string{"General Waste"}, EveryNWeeks: 1}}},
 		},
 	}
 
@@ -386,4 +392,136 @@ func TestNotifier_UnknownScraperRecordsError(t *testing.T) {
 	assert.Len(t, results, 1)
 	assert.NotNil(t, results[0].Error)
 	assert.Contains(t, results[0].Error.Error(), "scraper error")
+}
+
+func TestNotifier_FortnightlyOnWeekSendsWarning(t *testing.T) {
+	today := time.Date(2026, 1, 15, 0, 0, 0, 0, time.UTC) // Thursday
+	// tomorrow is Friday 2026-01-16, exactly 2 weeks after reference date 2026-01-02 = on week
+
+	mockScr := &mockScraper{
+		binTimes: []scraper.BinTime{},
+	}
+	mockSMS := &mockSMSClient{}
+
+	notifier := &Notifier{
+		ScraperFactory: newMockFactory(map[string]*mockScraper{"bracknell": mockScr}),
+		SMSClient:      mockSMS,
+		Clock:          func() time.Time { return today },
+	}
+
+	cfg := config.Config{
+		FromNumber: "+1234567890",
+		ToNumber:   "+0987654321",
+		Locations: []config.Location{
+			{
+				Label:       "Home",
+				Scraper:     "bracknell",
+				PostCode:    "RG12 1AB",
+				AddressCode: "12345",
+				CollectionDays: []config.CollectionDay{
+					{
+						Day:           time.Friday,
+						Types:         []string{"Garden Waste"},
+						EveryNWeeks:   2,
+						ReferenceDate: "2026-01-02",
+					},
+				},
+			},
+		},
+	}
+
+	results := notifier.Run(cfg)
+
+	assert.Len(t, results, 1)
+	assert.Nil(t, results[0].Error)
+	assert.True(t, results[0].SMSSent)
+	assert.Contains(t, results[0].Message, "Expected Garden Waste collection tomorrow (Friday)")
+}
+
+func TestNotifier_FortnightlyOffWeekNoMessage(t *testing.T) {
+	today := time.Date(2026, 1, 8, 0, 0, 0, 0, time.UTC) // Thursday
+	// tomorrow is Friday 2026-01-09, 1 week after reference date 2026-01-02 = off week for fortnightly
+
+	mockScr := &mockScraper{
+		binTimes: []scraper.BinTime{},
+	}
+	mockSMS := &mockSMSClient{}
+
+	notifier := &Notifier{
+		ScraperFactory: newMockFactory(map[string]*mockScraper{"bracknell": mockScr}),
+		SMSClient:      mockSMS,
+		Clock:          func() time.Time { return today },
+	}
+
+	cfg := config.Config{
+		FromNumber: "+1234567890",
+		ToNumber:   "+0987654321",
+		Locations: []config.Location{
+			{
+				Label:       "Home",
+				Scraper:     "bracknell",
+				PostCode:    "RG12 1AB",
+				AddressCode: "12345",
+				CollectionDays: []config.CollectionDay{
+					{
+						Day:           time.Friday,
+						Types:         []string{"Garden Waste"},
+						EveryNWeeks:   2,
+						ReferenceDate: "2026-01-02",
+					},
+				},
+			},
+		},
+	}
+
+	results := notifier.Run(cfg)
+
+	assert.Len(t, results, 1)
+	assert.Nil(t, results[0].Error)
+	assert.False(t, results[0].SMSSent)
+	assert.Len(t, mockSMS.calls, 0)
+}
+
+func TestNotifier_MultipleCollectionDaysWarnings(t *testing.T) {
+	today := time.Date(2024, 1, 15, 10, 0, 0, 0, time.UTC)   // Monday
+	nextWeek := time.Date(2024, 1, 22, 0, 0, 0, 0, time.UTC)  // Monday +1 week
+
+	mockScr := &mockScraper{
+		binTimes: []scraper.BinTime{
+			{Type: "General Waste", CollectionTime: nextWeek},
+		},
+	}
+	mockSMS := &mockSMSClient{}
+
+	notifier := &Notifier{
+		ScraperFactory: newMockFactory(map[string]*mockScraper{"bracknell": mockScr}),
+		SMSClient:      mockSMS,
+		Clock:          func() time.Time { return today },
+	}
+
+	cfg := config.Config{
+		FromNumber: "+1234567890",
+		ToNumber:   "+0987654321",
+		Locations: []config.Location{
+			{
+				Label:       "Home",
+				Scraper:     "bracknell",
+				PostCode:    "RG12 1AB",
+				AddressCode: "12345",
+				CollectionDays: []config.CollectionDay{
+					{Day: time.Tuesday, Types: []string{"Recycling"}, EveryNWeeks: 1},
+					{Day: time.Tuesday, Types: []string{"Food Waste"}, EveryNWeeks: 1},
+				},
+			},
+		},
+	}
+
+	results := notifier.Run(cfg)
+
+	assert.Len(t, results, 1)
+	assert.Nil(t, results[0].Error)
+	assert.True(t, results[0].SMSSent)
+	assert.Len(t, mockSMS.calls, 2)
+	assert.Contains(t, mockSMS.calls[0].body, "Recycling")
+	assert.Contains(t, mockSMS.calls[1].body, "Food Waste")
 }

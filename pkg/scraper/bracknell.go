@@ -38,6 +38,7 @@ func (s *BracknellScraper) ScrapeBinTimes(postCode string, addressCode string) (
 		chromedp.DisableGPU,
 		chromedp.UserDataDir(dir),
 		chromedp.Flag("headless", true),
+		chromedp.NoSandbox,
 	)
 
 	log.Printf("creating chrome context")

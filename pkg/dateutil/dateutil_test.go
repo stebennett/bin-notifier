@@ -159,6 +159,108 @@ func TestIsDateMatching(t *testing.T) {
 	}
 }
 
+func TestIsOnWeek(t *testing.T) {
+	tests := []struct {
+		name        string
+		reference   time.Time
+		target      time.Time
+		everyNWeeks int
+		expected    bool
+	}{
+		{
+			name:        "same week is on",
+			reference:   time.Date(2026, time.January, 2, 0, 0, 0, 0, time.UTC),  // Friday
+			target:      time.Date(2026, time.January, 2, 0, 0, 0, 0, time.UTC),  // Friday (same day)
+			everyNWeeks: 2,
+			expected:    true,
+		},
+		{
+			name:        "1 week later is off for fortnightly",
+			reference:   time.Date(2026, time.January, 2, 0, 0, 0, 0, time.UTC),  // Friday
+			target:      time.Date(2026, time.January, 9, 0, 0, 0, 0, time.UTC),  // Friday +1 week
+			everyNWeeks: 2,
+			expected:    false,
+		},
+		{
+			name:        "2 weeks later is on for fortnightly",
+			reference:   time.Date(2026, time.January, 2, 0, 0, 0, 0, time.UTC),  // Friday
+			target:      time.Date(2026, time.January, 16, 0, 0, 0, 0, time.UTC), // Friday +2 weeks
+			everyNWeeks: 2,
+			expected:    true,
+		},
+		{
+			name:        "3 weeks later is off for fortnightly",
+			reference:   time.Date(2026, time.January, 2, 0, 0, 0, 0, time.UTC),  // Friday
+			target:      time.Date(2026, time.January, 23, 0, 0, 0, 0, time.UTC), // Friday +3 weeks
+			everyNWeeks: 2,
+			expected:    false,
+		},
+		{
+			name:        "every 3 weeks - week 3 is on",
+			reference:   time.Date(2026, time.January, 2, 0, 0, 0, 0, time.UTC),  // Friday
+			target:      time.Date(2026, time.January, 23, 0, 0, 0, 0, time.UTC), // Friday +3 weeks
+			everyNWeeks: 3,
+			expected:    true,
+		},
+		{
+			name:        "every 3 weeks - week 2 is off",
+			reference:   time.Date(2026, time.January, 2, 0, 0, 0, 0, time.UTC),  // Friday
+			target:      time.Date(2026, time.January, 16, 0, 0, 0, 0, time.UTC), // Friday +2 weeks
+			everyNWeeks: 3,
+			expected:    false,
+		},
+		{
+			name:        "weekly is always on",
+			reference:   time.Date(2026, time.January, 2, 0, 0, 0, 0, time.UTC), // Friday
+			target:      time.Date(2026, time.January, 9, 0, 0, 0, 0, time.UTC), // Friday +1 week
+			everyNWeeks: 1,
+			expected:    true,
+		},
+		{
+			name:        "reference date in future still works",
+			reference:   time.Date(2026, time.January, 16, 0, 0, 0, 0, time.UTC), // Friday +2 weeks
+			target:      time.Date(2026, time.January, 2, 0, 0, 0, 0, time.UTC),  // Friday (earlier)
+			everyNWeeks: 2,
+			expected:    true,
+		},
+		{
+			name:        "reference date in future - off week",
+			reference:   time.Date(2026, time.January, 16, 0, 0, 0, 0, time.UTC), // Friday +2 weeks
+			target:      time.Date(2026, time.January, 9, 0, 0, 0, 0, time.UTC),  // Friday +1 week
+			everyNWeeks: 2,
+			expected:    false,
+		},
+		{
+			name:        "zero everyNWeeks returns false",
+			reference:   time.Date(2026, time.January, 2, 0, 0, 0, 0, time.UTC),
+			target:      time.Date(2026, time.January, 2, 0, 0, 0, 0, time.UTC),
+			everyNWeeks: 0,
+			expected:    false,
+		},
+		{
+			name:        "negative everyNWeeks returns false",
+			reference:   time.Date(2026, time.January, 2, 0, 0, 0, 0, time.UTC),
+			target:      time.Date(2026, time.January, 2, 0, 0, 0, 0, time.UTC),
+			everyNWeeks: -1,
+			expected:    false,
+		},
+		{
+			name:        "non-midnight times are normalised",
+			reference:   time.Date(2026, time.January, 2, 18, 30, 0, 0, time.UTC),  // Friday 6:30 PM
+			target:      time.Date(2026, time.January, 16, 9, 15, 0, 0, time.UTC),  // Friday +2 weeks 9:15 AM
+			everyNWeeks: 2,
+			expected:    true,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			actual := IsOnWeek(test.reference, test.target, test.everyNWeeks)
+			assert.Equal(t, test.expected, actual)
+		})
+	}
+}
+
 func TestParseWeekday(t *testing.T) {
 	tests := []struct {
 		name     string

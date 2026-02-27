@@ -28,12 +28,16 @@ locations:
     scraper: bracknell
     postcode: "RG12 1AB"
     address_code: "12345"
-    collection_day: tuesday
+    collection_days:
+      - day: tuesday
+        types: ["Recycling", "General Waste"]
   - label: Office
     scraper: wokingham
     postcode: "RG42 2XY"
     address_code: "67890"
-    collection_day: thursday
+    collection_days:
+      - day: thursday
+        types: ["Recycling"]
 `)
 
 	cfg, err := LoadConfig(path)
@@ -47,7 +51,9 @@ locations:
 	assert.Equal(t, "bracknell", cfg.Locations[0].Scraper)
 	assert.Equal(t, "RG12 1AB", cfg.Locations[0].PostCode)
 	assert.Equal(t, "12345", cfg.Locations[0].AddressCode)
-	assert.Equal(t, time.Tuesday, cfg.Locations[0].CollectionDay)
+	assert.Equal(t, time.Tuesday, cfg.Locations[0].CollectionDays[0].Day)
+	assert.Equal(t, []string{"Recycling", "General Waste"}, cfg.Locations[0].CollectionDays[0].Types)
+	assert.Equal(t, 1, cfg.Locations[0].CollectionDays[0].EveryNWeeks)
 
 	assert.Equal(t, "Office", cfg.Locations[1].Label)
 	assert.Equal(t, "wokingham", cfg.Locations[1].Scraper)
@@ -62,12 +68,14 @@ locations:
     scraper: bracknell
     postcode: "RG12 1AB"
     address_code: "12345"
-    collection_day: WEDNESDAY
+    collection_days:
+      - day: WEDNESDAY
+        types: ["General Waste"]
 `)
 
 	cfg, err := LoadConfig(path)
 	assert.NoError(t, err)
-	assert.Equal(t, time.Wednesday, cfg.Locations[0].CollectionDay)
+	assert.Equal(t, time.Wednesday, cfg.Locations[0].CollectionDays[0].Day)
 }
 
 func TestLoadConfig_InvalidDay(t *testing.T) {
@@ -79,7 +87,9 @@ locations:
     scraper: bracknell
     postcode: "RG12 1AB"
     address_code: "12345"
-    collection_day: notaday
+    collection_days:
+      - day: notaday
+        types: ["General Waste"]
 `)
 
 	_, err := LoadConfig(path)
@@ -102,7 +112,9 @@ locations:
     scraper: bracknell
     postcode: "RG12 1AB"
     address_code: "12345"
-    collection_day: tuesday`,
+    collection_days:
+      - day: tuesday
+        types: ["General Waste"]`,
 			errText: "from_number is required",
 		},
 		{
@@ -114,7 +126,9 @@ locations:
     scraper: bracknell
     postcode: "RG12 1AB"
     address_code: "12345"
-    collection_day: tuesday`,
+    collection_days:
+      - day: tuesday
+        types: ["General Waste"]`,
 			errText: "to_number is required",
 		},
 		{
@@ -134,7 +148,9 @@ locations:
   - scraper: bracknell
     postcode: "RG12 1AB"
     address_code: "12345"
-    collection_day: tuesday`,
+    collection_days:
+      - day: tuesday
+        types: ["General Waste"]`,
 			errText: "label is required",
 		},
 		{
@@ -146,7 +162,9 @@ locations:
   - label: Home
     postcode: "RG12 1AB"
     address_code: "12345"
-    collection_day: tuesday`,
+    collection_days:
+      - day: tuesday
+        types: ["General Waste"]`,
 			errText: "scraper is required",
 		},
 		{
@@ -158,7 +176,9 @@ locations:
   - label: Home
     scraper: bracknell
     address_code: "12345"
-    collection_day: tuesday`,
+    collection_days:
+      - day: tuesday
+        types: ["General Waste"]`,
 			errText: "postcode is required",
 		},
 		{
@@ -170,11 +190,13 @@ locations:
   - label: Home
     scraper: bracknell
     postcode: "RG12 1AB"
-    collection_day: tuesday`,
+    collection_days:
+      - day: tuesday
+        types: ["General Waste"]`,
 			errText: "address_code is required",
 		},
 		{
-			name: "missing collection_day",
+			name: "missing collection_days",
 			yaml: `
 from_number: "+441234567890"
 to_number: "+449876543210"
@@ -183,7 +205,99 @@ locations:
     scraper: bracknell
     postcode: "RG12 1AB"
     address_code: "12345"`,
-			errText: "collection_day is required",
+			errText: "collection_days must have at least one entry",
+		},
+		{
+			name: "empty collection_days",
+			yaml: `
+from_number: "+441234567890"
+to_number: "+449876543210"
+locations:
+  - label: Home
+    scraper: bracknell
+    postcode: "RG12 1AB"
+    address_code: "12345"
+    collection_days: []`,
+			errText: "collection_days must have at least one entry",
+		},
+		{
+			name: "missing types",
+			yaml: `
+from_number: "+441234567890"
+to_number: "+449876543210"
+locations:
+  - label: Home
+    scraper: bracknell
+    postcode: "RG12 1AB"
+    address_code: "12345"
+    collection_days:
+      - day: tuesday`,
+			errText: "types must have at least one entry",
+		},
+		{
+			name: "empty types",
+			yaml: `
+from_number: "+441234567890"
+to_number: "+449876543210"
+locations:
+  - label: Home
+    scraper: bracknell
+    postcode: "RG12 1AB"
+    address_code: "12345"
+    collection_days:
+      - day: tuesday
+        types: []`,
+			errText: "types must have at least one entry",
+		},
+		{
+			name: "missing reference_date for fortnightly",
+			yaml: `
+from_number: "+441234567890"
+to_number: "+449876543210"
+locations:
+  - label: Home
+    scraper: bracknell
+    postcode: "RG12 1AB"
+    address_code: "12345"
+    collection_days:
+      - day: tuesday
+        types: ["Recycling"]
+        every_n_weeks: 2`,
+			errText: "reference_date is required",
+		},
+		{
+			name: "invalid reference_date format",
+			yaml: `
+from_number: "+441234567890"
+to_number: "+449876543210"
+locations:
+  - label: Home
+    scraper: bracknell
+    postcode: "RG12 1AB"
+    address_code: "12345"
+    collection_days:
+      - day: tuesday
+        types: ["Recycling"]
+        every_n_weeks: 2
+        reference_date: "not-a-date"`,
+			errText: "invalid reference_date",
+		},
+		{
+			name: "reference_date weekday mismatch",
+			yaml: `
+from_number: "+441234567890"
+to_number: "+449876543210"
+locations:
+  - label: Home
+    scraper: bracknell
+    postcode: "RG12 1AB"
+    address_code: "12345"
+    collection_days:
+      - day: tuesday
+        types: ["Recycling"]
+        every_n_weeks: 2
+        reference_date: "2026-01-07"`,
+			errText: "reference_date must fall on",
 		},
 	}
 
@@ -206,6 +320,56 @@ func TestLoadConfig_InvalidYAML(t *testing.T) {
 	path := writeConfigFile(t, `{{{invalid yaml`)
 	_, err := LoadConfig(path)
 	assert.Error(t, err)
+}
+
+func TestLoadConfig_FortnightlySchedule(t *testing.T) {
+	path := writeConfigFile(t, `
+from_number: "+441234567890"
+to_number: "+449876543210"
+locations:
+  - label: Home
+    scraper: bracknell
+    postcode: "RG12 1AB"
+    address_code: "12345"
+    collection_days:
+      - day: tuesday
+        types: ["Recycling", "General Waste"]
+      - day: friday
+        every_n_weeks: 2
+        reference_date: "2026-01-02"
+        types: ["Garden Waste"]
+`)
+	cfg, err := LoadConfig(path)
+	assert.NoError(t, err)
+	assert.Len(t, cfg.Locations[0].CollectionDays, 2)
+	cd0 := cfg.Locations[0].CollectionDays[0]
+	assert.Equal(t, time.Tuesday, cd0.Day)
+	assert.Equal(t, []string{"Recycling", "General Waste"}, cd0.Types)
+	assert.Equal(t, 1, cd0.EveryNWeeks)
+	assert.Equal(t, "", cd0.ReferenceDate)
+	cd1 := cfg.Locations[0].CollectionDays[1]
+	assert.Equal(t, time.Friday, cd1.Day)
+	assert.Equal(t, []string{"Garden Waste"}, cd1.Types)
+	assert.Equal(t, 2, cd1.EveryNWeeks)
+	assert.Equal(t, "2026-01-02", cd1.ReferenceDate)
+}
+
+func TestLoadConfig_EveryNWeeksDefaultsTo1(t *testing.T) {
+	path := writeConfigFile(t, `
+from_number: "+441234567890"
+to_number: "+449876543210"
+locations:
+  - label: Home
+    scraper: bracknell
+    postcode: "RG12 1AB"
+    address_code: "12345"
+    collection_days:
+      - day: tuesday
+        types: ["Recycling"]
+`)
+	cfg, err := LoadConfig(path)
+	assert.NoError(t, err)
+	assert.Equal(t, 1, cfg.Locations[0].CollectionDays[0].EveryNWeeks)
 }
 
 func TestParseFlags_ConfigFromFlag(t *testing.T) {

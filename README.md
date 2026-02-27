@@ -60,13 +60,21 @@ locations:
     scraper: "bracknell"
     postcode: "RG12 1AB"
     address_code: "123456"
-    collection_day: "Tuesday"
+    collection_days:
+      - day: "Tuesday"
+        types: ["Recycling", "General Waste"]
+      - day: "Friday"
+        every_n_weeks: 2
+        reference_date: "2026-01-03"
+        types: ["Garden Waste"]
 
   - label: "Office"
     scraper: "bracknell"
     postcode: "RG12 9ZZ"
     address_code: "654321"
-    collection_day: "Friday"
+    collection_days:
+      - day: "Friday"
+        types: ["General Waste", "Recycling"]
 ```
 
 #### Location fields
@@ -77,7 +85,16 @@ locations:
 | `scraper` | Yes | Which council scraper to use (see available scrapers below) |
 | `postcode` | Yes | The postcode to look up on the council website |
 | `address_code` | Yes | The address code from the council website |
-| `collection_day` | Yes | Regular collection day name (e.g. `Monday`, `Tuesday`, ..., `Sunday`) |
+| `collection_days` | Yes | List of collection day schedules (see below) |
+
+#### Collection day schedule fields
+
+| Field | Required | Description |
+|-------|----------|-------------|
+| `day` | Yes | Day of the week (e.g. `Monday`, `Tuesday`, ..., `Sunday`) |
+| `types` | Yes | List of refuse types collected on this day (e.g. `["Recycling", "General Waste"]`) |
+| `every_n_weeks` | No | Collection frequency in weeks (default: `1` for weekly) |
+| `reference_date` | When `every_n_weeks > 1` | A known collection date (`YYYY-MM-DD`) used to calculate which weeks are "on". Must fall on the same weekday as `day`. |
 
 #### Available scrapers
 

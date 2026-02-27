@@ -42,13 +42,20 @@ func ParseFlags(args []string) (Flags, error) {
 	return f, nil
 }
 
+type CollectionDay struct {
+	Day           time.Weekday `yaml:"-"`
+	RawDay        string       `yaml:"day"`
+	Types         []string     `yaml:"types"`
+	EveryNWeeks   int          `yaml:"every_n_weeks"`
+	ReferenceDate string       `yaml:"reference_date"`
+}
+
 type Location struct {
-	Label         string       `yaml:"label"`
-	Scraper       string       `yaml:"scraper"`
-	PostCode      string       `yaml:"postcode"`
-	AddressCode   string       `yaml:"address_code"`
-	CollectionDay time.Weekday `yaml:"-"`
-	RawDay        string       `yaml:"collection_day"`
+	Label          string          `yaml:"label"`
+	Scraper        string          `yaml:"scraper"`
+	PostCode       string          `yaml:"postcode"`
+	AddressCode    string          `yaml:"address_code"`
+	CollectionDays []CollectionDay `yaml:"collection_days"`
 }
 
 type Config struct {
@@ -101,14 +108,41 @@ func validate(cfg *Config) error {
 		if loc.AddressCode == "" {
 			return fmt.Errorf("location %d: address_code is required", i+1)
 		}
-		if loc.RawDay == "" {
-			return fmt.Errorf("location %d: collection_day is required", i+1)
+		if len(loc.CollectionDays) == 0 {
+			return fmt.Errorf("location %d: collection_days must have at least one entry", i+1)
 		}
-		day, err := dateutil.ParseWeekday(loc.RawDay)
-		if err != nil {
-			return fmt.Errorf("location %d: %w", i+1, err)
+		for j := range loc.CollectionDays {
+			cd := &loc.CollectionDays[j]
+			if cd.RawDay == "" {
+				return fmt.Errorf("location %d, schedule %d: day is required", i+1, j+1)
+			}
+			day, err := dateutil.ParseWeekday(cd.RawDay)
+			if err != nil {
+				return fmt.Errorf("location %d, schedule %d: %w", i+1, j+1, err)
+			}
+			cd.Day = day
+			if len(cd.Types) == 0 {
+				return fmt.Errorf("location %d, schedule %d: types must have at least one entry", i+1, j+1)
+			}
+			if cd.EveryNWeeks == 0 {
+				cd.EveryNWeeks = 1
+			}
+			if cd.EveryNWeeks < 1 {
+				return fmt.Errorf("location %d, schedule %d: every_n_weeks must be >= 1", i+1, j+1)
+			}
+			if cd.EveryNWeeks > 1 {
+				if cd.ReferenceDate == "" {
+					return fmt.Errorf("location %d, schedule %d: reference_date is required when every_n_weeks > 1", i+1, j+1)
+				}
+				refDate, err := time.Parse("2006-01-02", cd.ReferenceDate)
+				if err != nil {
+					return fmt.Errorf("location %d, schedule %d: invalid reference_date: %w", i+1, j+1, err)
+				}
+				if refDate.Weekday() != day {
+					return fmt.Errorf("location %d, schedule %d: reference_date must fall on %s", i+1, j+1, day)
+				}
+			}
 		}
-		loc.CollectionDay = day
 	}
 	return nil
 }

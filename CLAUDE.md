@@ -105,7 +105,8 @@ pkg/regexp/
 
 - `Flags` - CLI flags: ConfigFile (`-c`), DryRun (`-x`), TodayDate (`-d`)
 - `Config` - YAML top-level: FromNumber, ToNumber, Locations[], DryRun, TodayDate
-- `Location` - Per-location: Label, Scraper, PostCode, AddressCode, CollectionDay (time.Weekday)
+- `Location` - Per-location: Label, Scraper, PostCode, AddressCode, CollectionDays ([]CollectionDay)
+- `CollectionDay` - Per-schedule: Day (time.Weekday), Types ([]string), EveryNWeeks (int), ReferenceDate (string)
 
 ### Adding a New Scraper
 
