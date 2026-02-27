@@ -19,6 +19,15 @@ func IsDateMatching(t1, t2 time.Time) bool {
 	return t1.Year() == t2.Year() && t1.YearDay() == t2.YearDay()
 }
 
+func IsOnWeek(referenceDate, targetDate time.Time, everyNWeeks int) bool {
+	days := int(targetDate.Sub(referenceDate).Hours() / 24)
+	if days < 0 {
+		days = -days
+	}
+	weeks := days / 7
+	return weeks%everyNWeeks == 0
+}
+
 func ParseWeekday(s string) (time.Weekday, error) {
 	days := map[string]time.Weekday{
 		"sunday":    time.Sunday,

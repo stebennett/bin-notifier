@@ -159,6 +159,89 @@ func TestIsDateMatching(t *testing.T) {
 	}
 }
 
+func TestIsOnWeek(t *testing.T) {
+	ref := time.Date(2026, time.January, 2, 0, 0, 0, 0, time.UTC) // a Friday
+
+	tests := []struct {
+		name        string
+		reference   time.Time
+		target      time.Time
+		everyNWeeks int
+		expected    bool
+	}{
+		{
+			name:        "same week is on",
+			reference:   ref,
+			target:      ref,
+			everyNWeeks: 2,
+			expected:    true,
+		},
+		{
+			name:        "1 week later is off for fortnightly",
+			reference:   ref,
+			target:      ref.AddDate(0, 0, 7),
+			everyNWeeks: 2,
+			expected:    false,
+		},
+		{
+			name:        "2 weeks later is on for fortnightly",
+			reference:   ref,
+			target:      ref.AddDate(0, 0, 14),
+			everyNWeeks: 2,
+			expected:    true,
+		},
+		{
+			name:        "3 weeks later is off for fortnightly",
+			reference:   ref,
+			target:      ref.AddDate(0, 0, 21),
+			everyNWeeks: 2,
+			expected:    false,
+		},
+		{
+			name:        "every 3 weeks - week 3 is on",
+			reference:   ref,
+			target:      ref.AddDate(0, 0, 21),
+			everyNWeeks: 3,
+			expected:    true,
+		},
+		{
+			name:        "every 3 weeks - week 2 is off",
+			reference:   ref,
+			target:      ref.AddDate(0, 0, 14),
+			everyNWeeks: 3,
+			expected:    false,
+		},
+		{
+			name:        "weekly is always on",
+			reference:   ref,
+			target:      ref.AddDate(0, 0, 7),
+			everyNWeeks: 1,
+			expected:    true,
+		},
+		{
+			name:        "reference date in future still works",
+			reference:   ref.AddDate(0, 0, 14),
+			target:      ref,
+			everyNWeeks: 2,
+			expected:    true,
+		},
+		{
+			name:        "reference date in future - off week",
+			reference:   ref.AddDate(0, 0, 14),
+			target:      ref.AddDate(0, 0, 7),
+			everyNWeeks: 2,
+			expected:    false,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			actual := IsOnWeek(test.reference, test.target, test.everyNWeeks)
+			assert.Equal(t, test.expected, actual)
+		})
+	}
+}
+
 func TestParseWeekday(t *testing.T) {
 	tests := []struct {
 		name     string
