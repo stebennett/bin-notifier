@@ -230,6 +230,27 @@ func TestIsOnWeek(t *testing.T) {
 			everyNWeeks: 2,
 			expected:    false,
 		},
+		{
+			name:        "zero everyNWeeks returns false",
+			reference:   time.Date(2026, time.January, 2, 0, 0, 0, 0, time.UTC),
+			target:      time.Date(2026, time.January, 2, 0, 0, 0, 0, time.UTC),
+			everyNWeeks: 0,
+			expected:    false,
+		},
+		{
+			name:        "negative everyNWeeks returns false",
+			reference:   time.Date(2026, time.January, 2, 0, 0, 0, 0, time.UTC),
+			target:      time.Date(2026, time.January, 2, 0, 0, 0, 0, time.UTC),
+			everyNWeeks: -1,
+			expected:    false,
+		},
+		{
+			name:        "non-midnight times are normalised",
+			reference:   time.Date(2026, time.January, 2, 18, 30, 0, 0, time.UTC),  // Friday 6:30 PM
+			target:      time.Date(2026, time.January, 16, 9, 15, 0, 0, time.UTC),  // Friday +2 weeks 9:15 AM
+			everyNWeeks: 2,
+			expected:    true,
+		},
 	}
 
 	for _, test := range tests {

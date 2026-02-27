@@ -19,8 +19,18 @@ func IsDateMatching(t1, t2 time.Time) bool {
 	return t1.Year() == t2.Year() && t1.YearDay() == t2.YearDay()
 }
 
+func normalizeToUTCMidnight(t time.Time) time.Time {
+	y, m, d := t.In(time.UTC).Date()
+	return time.Date(y, m, d, 0, 0, 0, 0, time.UTC)
+}
+
 func IsOnWeek(referenceDate, targetDate time.Time, everyNWeeks int) bool {
-	days := int(targetDate.Sub(referenceDate).Hours() / 24)
+	if everyNWeeks <= 0 {
+		return false
+	}
+	ref := normalizeToUTCMidnight(referenceDate)
+	target := normalizeToUTCMidnight(targetDate)
+	days := int(target.Sub(ref).Hours() / 24)
 	if days < 0 {
 		days = -days
 	}
