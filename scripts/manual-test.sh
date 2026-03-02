@@ -1,27 +1,33 @@
 #!/usr/bin/env bash
 #
 # Manual test script for multi-schedule collection days feature.
-# Builds a Docker image and runs 8 test scenarios in dry-run mode.
+# Builds a Docker image and runs test scenarios in dry-run mode.
 #
-# Usage: ./scripts/manual-test.sh -p "RG12 1AB" -a 12345
+# Usage: ./scripts/manual-test.sh -p "RG12 1AB" -a 12345 [-w "RG40 1AB" -z 67890]
 #
 set -euo pipefail
 
 usage() {
-  echo "Usage: $0 -p <postcode> -a <address_code>"
+  echo "Usage: $0 -p <postcode> -a <address_code> [-w <wokingham_postcode>] [-z <wokingham_address_code>]"
   echo ""
   echo "  -p  Bracknell postcode (e.g. \"RG12 1AB\")"
   echo "  -a  Address code (numeric ID from council site)"
+  echo "  -w  Wokingham postcode (e.g. \"RG40 1AB\")"
+  echo "  -z  Wokingham address code (numeric ID from council site)"
   exit 1
 }
 
 POSTCODE=""
 ADDRESS_CODE=""
+WOK_POSTCODE=""
+WOK_ADDRESS_CODE=""
 
-while getopts ":p:a:" opt; do
+while getopts ":p:a:w:z:" opt; do
   case ${opt} in
     p) POSTCODE="${OPTARG}" ;;
     a) ADDRESS_CODE="${OPTARG}" ;;
+    w) WOK_POSTCODE="${OPTARG}" ;;
+    z) WOK_ADDRESS_CODE="${OPTARG}" ;;
     :) echo "Error: -${OPTARG} requires an argument" >&2; usage ;;
     *) usage ;;
   esac
@@ -172,8 +178,14 @@ offset_weeks() {
 
 # ── Setup ────────────────────────────────────────────────────────────
 echo -e "${BOLD}Multi-Schedule Collection Days — Manual Test Script${NC}"
-echo -e "Postcode:     ${POSTCODE}"
-echo -e "Address code: ${ADDRESS_CODE}"
+echo -e "Bracknell postcode:     ${POSTCODE}"
+echo -e "Bracknell address code: ${ADDRESS_CODE}"
+if [[ -n "${WOK_POSTCODE}" && -n "${WOK_ADDRESS_CODE}" ]]; then
+  echo -e "Wokingham postcode:     ${WOK_POSTCODE}"
+  echo -e "Wokingham address code: ${WOK_ADDRESS_CODE}"
+else
+  echo -e "${YELLOW}Wokingham: skipped (use -w and -z to enable)${NC}"
+fi
 echo ""
 TMPDIR_BASE=$(mktemp -d)
 rm -rf "${LOGS_DIR}"
@@ -412,6 +424,136 @@ locations:
         types: ["Recycling"]
 YAML
 run_scenario 8 "Multiple collection days" "${CFG8}" "-x -d ${DAY_BEFORE}" "0" "Next collection"
+
+# ═════════════════════════════════════════════════════════════════════
+# GROUP 3: Wokingham scraper (optional — requires -w and -z flags)
+# ═════════════════════════════════════════════════════════════════════
+if [[ -n "${WOK_POSTCODE}" && -n "${WOK_ADDRESS_CODE}" ]]; then
+  echo -e "\n${BOLD}═══ Group 3: Wokingham Scraper ═══${NC}"
+
+  # Discovery: scrape Wokingham to learn actual collection dates
+  echo -e "\n${BOLD}═══ Discovery: Scraping Wokingham collection dates ═══${NC}"
+  echo -e "Running a discovery scrape to find actual collection days..."
+
+  WOK_DISC_CFG="${TMPDIR_BASE}/wok_discovery.yaml"
+  cat > "${WOK_DISC_CFG}" <<YAML
+from_number: "+10000000000"
+to_number: "+10000000001"
+locations:
+  - label: "WokDiscovery"
+    scraper: "wokingham"
+    postcode: "${WOK_POSTCODE}"
+    address_code: "${WOK_ADDRESS_CODE}"
+    collection_days:
+      - day: monday
+        types: ["General Waste"]
+YAML
+
+  WOK_DISC_OUTPUT=$(docker run --rm \
+    -e TWILIO_ACCOUNT_SID=test \
+    -e TWILIO_AUTH_TOKEN=test \
+    -v "${WOK_DISC_CFG}:/config.yaml:ro" \
+    "${IMAGE_NAME}" -c /config.yaml -x -d 2026-03-01 2>&1) || true
+
+  echo "${WOK_DISC_OUTPUT}" > "${LOGS_DIR}/wok-discovery.log"
+  echo -e "${YELLOW}Wokingham discovery output:${NC}"
+  echo "${WOK_DISC_OUTPUT}" | grep -i "Next collection" | sed 's/^/  /' || echo "  (no collection lines found)"
+
+  WOK_FIRST_DATE=$(echo "${WOK_DISC_OUTPUT}" | grep -oE '[0-9]{4}-[0-9]{2}-[0-9]{2}' | head -1 || true)
+
+  if [[ -z "${WOK_FIRST_DATE}" ]]; then
+    echo -e "${RED}Could not extract any collection dates from Wokingham discovery run.${NC}"
+    echo -e "Check ${LOGS_DIR}/wok-discovery.log for details."
+    echo -e "Skipping remaining Wokingham scenarios."
+  else
+    echo -e "\n${YELLOW}First Wokingham collection date found:${NC} ${WOK_FIRST_DATE}"
+
+    WOK_DAY_BEFORE=$(date -j -v "-1d" -f "%Y-%m-%d" "${WOK_FIRST_DATE}" "+%Y-%m-%d" 2>/dev/null || \
+                     date -d "${WOK_FIRST_DATE} - 1 day" "+%Y-%m-%d" 2>/dev/null)
+    WOK_WEEKDAY=$(weekday_name_lc "${WOK_FIRST_DATE}")
+
+    echo -e "${YELLOW}Wokingham collection weekday:${NC} ${WOK_WEEKDAY}"
+    echo -e "${YELLOW}Will use -d date:${NC} ${WOK_DAY_BEFORE} (so tomorrow = ${WOK_FIRST_DATE})"
+
+    # Scenario 9: Wokingham scraping works with collection day config
+    CFG9="${TMPDIR_BASE}/cfg9.yaml"
+    cat > "${CFG9}" <<YAML
+from_number: "+10000000000"
+to_number: "+10000000001"
+locations:
+  - label: "WokTest"
+    scraper: "wokingham"
+    postcode: "${WOK_POSTCODE}"
+    address_code: "${WOK_ADDRESS_CODE}"
+    collection_days:
+      - day: ${WOK_WEEKDAY}
+        types: ["General Waste", "Recycling"]
+YAML
+    run_scenario 9 "Wokingham scraping works with config" "${CFG9}" "-x -d ${WOK_DAY_BEFORE}" "0" "Tomorrows bin collections|Expected.*collection tomorrow|Next collection"
+
+    # Scenario 10: Wokingham fortnightly on-week
+    CFG10="${TMPDIR_BASE}/cfg10.yaml"
+    cat > "${CFG10}" <<YAML
+from_number: "+10000000000"
+to_number: "+10000000001"
+locations:
+  - label: "WokTest"
+    scraper: "wokingham"
+    postcode: "${WOK_POSTCODE}"
+    address_code: "${WOK_ADDRESS_CODE}"
+    collection_days:
+      - day: ${WOK_WEEKDAY}
+        types: ["General Waste"]
+        every_n_weeks: 2
+        reference_date: "${WOK_FIRST_DATE}"
+YAML
+    run_scenario 10 "Wokingham fortnightly on-week" "${CFG10}" "-x -d ${WOK_DAY_BEFORE}" "0" "Tomorrows bin collections|Expected.*collection tomorrow|Next collection"
+
+    # Scenario 11: Wokingham fortnightly off-week is silent
+    WOK_OFF_WEEK_DAY_BEFORE=$(offset_weeks "${WOK_DAY_BEFORE}" 1)
+    CFG11="${TMPDIR_BASE}/cfg11.yaml"
+    cat > "${CFG11}" <<YAML
+from_number: "+10000000000"
+to_number: "+10000000001"
+locations:
+  - label: "WokTest"
+    scraper: "wokingham"
+    postcode: "${WOK_POSTCODE}"
+    address_code: "${WOK_ADDRESS_CODE}"
+    collection_days:
+      - day: ${WOK_WEEKDAY}
+        types: ["General Waste"]
+        every_n_weeks: 2
+        reference_date: "${WOK_FIRST_DATE}"
+YAML
+    run_scenario 11 "Wokingham fortnightly off-week is silent" "${CFG11}" "-x -d ${WOK_OFF_WEEK_DAY_BEFORE}" "0" "No collections tomorrow and not an expected collection day"
+
+    # Scenario 12: Wokingham with multiple locations (Bracknell + Wokingham)
+    CFG12="${TMPDIR_BASE}/cfg12.yaml"
+    cat > "${CFG12}" <<YAML
+from_number: "+10000000000"
+to_number: "+10000000001"
+locations:
+  - label: "BracknellHome"
+    scraper: "bracknell"
+    postcode: "${POSTCODE}"
+    address_code: "${ADDRESS_CODE}"
+    collection_days:
+      - day: ${COLLECTION_WEEKDAY}
+        types: ["General Waste"]
+  - label: "WokinghamHome"
+    scraper: "wokingham"
+    postcode: "${WOK_POSTCODE}"
+    address_code: "${WOK_ADDRESS_CODE}"
+    collection_days:
+      - day: ${WOK_WEEKDAY}
+        types: ["General Waste"]
+YAML
+    run_scenario 12 "Multiple locations (Bracknell + Wokingham)" "${CFG12}" "-x -d ${DAY_BEFORE}" "0" "Next collection"
+  fi
+else
+  echo -e "\n${YELLOW}═══ Group 3: Wokingham Scraper — SKIPPED (use -w and -z flags) ═══${NC}"
+fi
 
 # ═════════════════════════════════════════════════════════════════════
 # Summary
