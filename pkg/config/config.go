@@ -77,13 +77,6 @@ func LoadConfig(path string) (Config, error) {
 		return Config{}, err
 	}
 
-	if v := os.Getenv("BN_FROM_NUMBER"); v != "" {
-		cfg.FromNumber = v
-	}
-	if v := os.Getenv("BN_TO_NUMBER"); v != "" {
-		cfg.ToNumber = v
-	}
-
 	if err := validate(&cfg); err != nil {
 		return Config{}, err
 	}
