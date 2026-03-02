@@ -133,11 +133,13 @@ locations:
 |----------|----------|-------------|
 | `TWILIO_ACCOUNT_SID` | Yes | Your Twilio account SID |
 | `TWILIO_AUTH_TOKEN` | Yes | Your Twilio auth token |
+| `BN_FROM_NUMBER` | No | Twilio "from" phone number (overrides `from_number` in config) |
+| `BN_TO_NUMBER` | No | Destination phone number (overrides `to_number` in config) |
 | `BN_CONFIG_FILE` | No | Path to config file (alternative to `-c` flag) |
 | `BN_DRY_RUN` | No | Set to `true` to run without sending SMS |
 | `BN_TODAY_DATE` | No | Override today's date (format: YYYY-MM-DD) |
 
-CLI flags take precedence over environment variables.
+CLI flags take precedence over environment variables. `BN_FROM_NUMBER` and `BN_TO_NUMBER` take precedence over config file values.
 
 ## Usage
 

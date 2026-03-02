@@ -44,6 +44,10 @@ docker run --rm \
 - `TWILIO_ACCOUNT_SID` - Twilio account SID
 - `TWILIO_AUTH_TOKEN` - Twilio auth token
 
+**Phone numbers (optional, overrides config file):**
+- `BN_FROM_NUMBER` - Twilio "from" phone number (overrides `from_number` in config)
+- `BN_TO_NUMBER` - Destination phone number (overrides `to_number` in config)
+
 **Application config (alternative to CLI flags):**
 - `BN_CONFIG_FILE` - Path to YAML config file
 - `BN_DRY_RUN` - Set to `true` for dry-run mode
