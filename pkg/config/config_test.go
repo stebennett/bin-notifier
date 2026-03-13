@@ -303,6 +303,8 @@ locations:
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
+			t.Setenv("BN_FROM_NUMBER", "")
+			t.Setenv("BN_TO_NUMBER", "")
 			path := writeConfigFile(t, test.yaml)
 			_, err := LoadConfig(path)
 			assert.Error(t, err)
@@ -352,6 +354,50 @@ locations:
 	assert.Equal(t, []string{"Garden Waste"}, cd1.Types)
 	assert.Equal(t, 2, cd1.EveryNWeeks)
 	assert.Equal(t, "2026-01-02", cd1.ReferenceDate)
+}
+
+func TestLoadConfig_PhoneNumbersFromEnvVars(t *testing.T) {
+	yaml := `
+locations:
+  - label: Home
+    scraper: bracknell
+    postcode: "RG12 1AB"
+    address_code: "12345"
+    collection_days:
+      - day: tuesday
+        types: ["General Waste"]
+`
+	t.Setenv("BN_FROM_NUMBER", "+440000000000")
+	t.Setenv("BN_TO_NUMBER", "+441111111111")
+
+	path := writeConfigFile(t, yaml)
+	cfg, err := LoadConfig(path)
+	assert.NoError(t, err)
+	assert.Equal(t, "+440000000000", cfg.FromNumber)
+	assert.Equal(t, "+441111111111", cfg.ToNumber)
+}
+
+func TestLoadConfig_YAMLPhoneNumbersTakePrecedenceOverEnv(t *testing.T) {
+	yaml := `
+from_number: "+441234567890"
+to_number: "+449876543210"
+locations:
+  - label: Home
+    scraper: bracknell
+    postcode: "RG12 1AB"
+    address_code: "12345"
+    collection_days:
+      - day: tuesday
+        types: ["General Waste"]
+`
+	t.Setenv("BN_FROM_NUMBER", "+440000000000")
+	t.Setenv("BN_TO_NUMBER", "+441111111111")
+
+	path := writeConfigFile(t, yaml)
+	cfg, err := LoadConfig(path)
+	assert.NoError(t, err)
+	assert.Equal(t, "+441234567890", cfg.FromNumber)
+	assert.Equal(t, "+449876543210", cfg.ToNumber)
 }
 
 func TestLoadConfig_EveryNWeeksDefaultsTo1(t *testing.T) {
