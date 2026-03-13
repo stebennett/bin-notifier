@@ -44,9 +44,9 @@ docker run --rm \
 - `TWILIO_ACCOUNT_SID` - Twilio account SID
 - `TWILIO_AUTH_TOKEN` - Twilio auth token
 
-**Phone numbers (optional, overrides config file):**
-- `BN_FROM_NUMBER` - Twilio "from" phone number (overrides `from_number` in config)
-- `BN_TO_NUMBER` - Destination phone number (overrides `to_number` in config)
+**Phone numbers (optional, fallback when not set in config file):**
+- `BN_FROM_NUMBER` - Twilio "from" phone number (used when `from_number` is not set in config)
+- `BN_TO_NUMBER` - Destination phone number (used when `to_number` is not set in config)
 
 **Application config (alternative to CLI flags):**
 - `BN_CONFIG_FILE` - Path to YAML config file
