@@ -23,8 +23,17 @@ go test ./...
 # Run a specific test
 go test -run TestParseNextCollectionTime ./pkg/scraper/
 
+# Build the MCP server
+go build -o bin-notifier-mcp ./cmd/server
+
+# Run the MCP server (stdio transport)
+./bin-notifier-mcp -c config.yaml
+
 # Build Docker image
 docker build -t bin-notifier .
+
+# Build MCP server Docker image
+docker build -f Dockerfile.mcp -t bin-notifier-mcp .
 
 # Run with Docker (dry-run mode)
 docker run --rm \
@@ -32,6 +41,11 @@ docker run --rm \
   -e TWILIO_AUTH_TOKEN=test \
   -v /path/to/config.yaml:/config.yaml:ro \
   bin-notifier -c /config.yaml -x
+
+# Run MCP server with Docker (stdio transport, use -i for stdin)
+docker run -i --rm \
+  -v /path/to/config.yaml:/config.yaml:ro \
+  bin-notifier-mcp -c /config.yaml
 ```
 
 ## Prerequisites
@@ -66,9 +80,13 @@ cmd/notifier/
   main.go          - Entry point + Notifier struct (orchestrates the workflow)
   main_test.go     - Tests using mock scrapers and SMS client
 
+cmd/server/
+  main.go          - MCP server entry point: loads config, registers tools, runs stdio transport
+  main_test.go     - Tool handler tests with mock scrapers
+
 pkg/config/
   config.go        - Flags struct + ParseFlags() for CLI flags (-c, -x, -d)
-                     Config/Location structs + LoadConfig() for YAML parsing
+                     Config/Location structs + LoadConfig() / LoadConfigForMCP() for YAML parsing
                      Uses stdlib flag package (not go-flags)
   config_test.go
 
@@ -82,8 +100,16 @@ pkg/clients/
   twilioclient.go  - TwilioClient for sending SMS via Twilio API
   twilioclient_test.go
 
+pkg/schedule/
+  schedule.go      - ProjectCollections() — project collections from config rules for a date range
+  schedule_test.go
+
+pkg/cache/
+  cache.go         - ScraperCache — in-memory TTL cache for scraper results, thread-safe
+  cache_test.go
+
 pkg/dateutil/
-  dateutil.go      - IsDateMatching(), AsTime(), AsTimeWithMonth(), ParseWeekday()
+  dateutil.go      - IsDateMatching(), AsTime(), AsTimeWithMonth(), ParseWeekday(), IsOnWeek()
   dateutil_test.go
 
 pkg/regexp/
@@ -118,14 +144,25 @@ pkg/regexp/
 2. Add a case to the `NewScraper()` switch in `pkg/scraper/scraper.go`
 3. No changes needed to `cmd/notifier/main.go`
 
+### MCP Server (cmd/server)
+
+The MCP server exposes bin collection data via the Model Context Protocol over stdio. It provides three tools:
+
+- `get_collections` — Project collections from config schedule rules for a date/range (fast, no Chrome)
+- `get_next_collection` — Scrape council website for confirmed next collection dates (cached 6h)
+- `list_locations` — List all configured locations and their schedules
+
+Config is loaded via `LoadConfigForMCP()` which skips phone number validation since the MCP server doesn't send SMS.
+
 ## Key Dependencies
 
 - `chromedp` - Headless Chrome automation for web scraping
 - `twilio-go` - Twilio SDK for SMS
+- `mcp-go` - Go MCP SDK for the MCP server
 - `yaml.v3` - YAML config file parsing
 - `testify` - Test assertions
 
 ## GitHub Actions
 
-- **CI** (`.github/workflows/ci.yml`) - Runs on pull requests; builds and tests the application
-- **Release** (`.github/workflows/release.yml`) - Triggers on `vX.Y.Z` tags; builds binaries for linux/amd64, linux/arm64, darwin/arm64, creates a GitHub release with zip artifacts, and pushes Docker images to ghcr.io
+- **CI** (`.github/workflows/ci.yml`) - Runs on pull requests; builds both notifier and MCP server, runs tests
+- **Release** (`.github/workflows/release.yml`) - Triggers on `vX.Y.Z` tags; builds binaries for both notifier and MCP server (linux/amd64, linux/arm64, darwin/arm64), creates a GitHub release with zip artifacts, and pushes Docker images for both to ghcr.io

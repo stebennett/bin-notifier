@@ -91,6 +91,25 @@ func LoadConfig(path string) (Config, error) {
 	return cfg, nil
 }
 
+// LoadConfigForMCP loads config for the MCP server, skipping phone number validation.
+func LoadConfigForMCP(path string) (Config, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return Config{}, err
+	}
+
+	var cfg Config
+	if err := yaml.Unmarshal(data, &cfg); err != nil {
+		return Config{}, err
+	}
+
+	if err := validateLocations(&cfg); err != nil {
+		return Config{}, err
+	}
+
+	return cfg, nil
+}
+
 func validate(cfg *Config) error {
 	if cfg.FromNumber == "" {
 		return fmt.Errorf("from_number is required")
@@ -98,6 +117,10 @@ func validate(cfg *Config) error {
 	if cfg.ToNumber == "" {
 		return fmt.Errorf("to_number is required")
 	}
+	return validateLocations(cfg)
+}
+
+func validateLocations(cfg *Config) error {
 	if len(cfg.Locations) == 0 {
 		return fmt.Errorf("at least one location is required")
 	}

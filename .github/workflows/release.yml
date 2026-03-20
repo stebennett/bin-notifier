@@ -22,12 +22,27 @@ jobs:
           - goos: linux
             goarch: amd64
             name: bin-notifier-linux-amd64
+            cmd: ./cmd/notifier
           - goos: linux
             goarch: arm64
             name: bin-notifier-linux-arm64
+            cmd: ./cmd/notifier
           - goos: darwin
             goarch: arm64
             name: bin-notifier-darwin-arm64
+            cmd: ./cmd/notifier
+          - goos: linux
+            goarch: amd64
+            name: bin-notifier-mcp-linux-amd64
+            cmd: ./cmd/server
+          - goos: linux
+            goarch: arm64
+            name: bin-notifier-mcp-linux-arm64
+            cmd: ./cmd/server
+          - goos: darwin
+            goarch: arm64
+            name: bin-notifier-mcp-darwin-arm64
+            cmd: ./cmd/server
 
     steps:
       - name: Checkout code
@@ -43,7 +58,7 @@ jobs:
         env:
           GOOS: ${{ matrix.goos }}
           GOARCH: ${{ matrix.goarch }}
-        run: go build -o ${{ matrix.name }} ./cmd/notifier
+        run: go build -o ${{ matrix.name }} ${{ matrix.cmd }}
 
       - name: Upload artifact
         uses: actions/upload-artifact@v7
@@ -84,6 +99,47 @@ jobs:
         uses: docker/build-push-action@v6
         with:
           context: .
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  docker-mcp:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Container Registry
+        uses: docker/login-action@v4
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-mcp
+          tags: |
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=raw,value=latest
+
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: Dockerfile.mcp
           platforms: linux/amd64,linux/arm64
           push: true
           tags: ${{ steps.meta.outputs.tags }}
