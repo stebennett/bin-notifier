@@ -477,3 +477,34 @@ func TestParseFlags_FlagOverridesEnv(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, "/flag/config.yaml", flags.ConfigFile)
 }
+
+func TestLoadConfigForMCP_SkipsPhoneValidation(t *testing.T) {
+	path := writeConfigFile(t, `
+locations:
+  - label: Home
+    scraper: bracknell
+    postcode: "RG12 1AB"
+    address_code: "12345"
+    collection_days:
+      - day: tuesday
+        types: ["Recycling"]
+`)
+	t.Setenv("BN_FROM_NUMBER", "")
+	t.Setenv("BN_TO_NUMBER", "")
+
+	cfg, err := LoadConfigForMCP(path)
+	assert.NoError(t, err)
+	assert.Len(t, cfg.Locations, 1)
+	assert.Equal(t, "Home", cfg.Locations[0].Label)
+	assert.Equal(t, time.Tuesday, cfg.Locations[0].CollectionDays[0].Day)
+}
+
+func TestLoadConfigForMCP_StillValidatesLocations(t *testing.T) {
+	path := writeConfigFile(t, `
+locations: []
+`)
+
+	_, err := LoadConfigForMCP(path)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "at least one location is required")
+}
