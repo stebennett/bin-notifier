@@ -1,6 +1,6 @@
 # Bin Notifier
 
-A Go application that scrapes bin collection schedules from council websites and sends SMS notifications via Twilio when collections are due tomorrow. Supports multiple locations with pluggable council scrapers.
+A Go application that scrapes bin collection schedules from council websites and sends SMS notifications via Twilio when collections are due tomorrow. Supports multiple locations with pluggable council scrapers. Also includes an MCP server for interactive bin collection queries from LLM agents.
 
 ## Features
 
@@ -14,6 +14,7 @@ A Go application that scrapes bin collection schedules from council websites and
 - SMS messages prefixed with location label for easy identification
 - Dry-run mode for testing without sending SMS
 - Configurable date override for testing
+- **MCP server** — expose bin collection data to LLM agents via the Model Context Protocol
 
 ## Prerequisites
 
@@ -29,6 +30,7 @@ A Go application that scrapes bin collection schedules from council websites and
 git clone https://github.com/stebennett/bin-notifier.git
 cd bin-notifier
 go build -o bin-notifier ./cmd/notifier
+go build -o bin-notifier-mcp ./cmd/server
 ```
 
 ### From Releases
@@ -36,6 +38,8 @@ go build -o bin-notifier ./cmd/notifier
 Download pre-built binaries from the [GitHub Releases](https://github.com/stebennett/bin-notifier/releases) page. Available for:
 - Linux (amd64, arm64)
 - macOS (arm64)
+
+Both the notifier (`bin-notifier-*`) and MCP server (`bin-notifier-mcp-*`) binaries are included in each release.
 
 ### Docker
 
@@ -198,6 +202,88 @@ Build locally:
 docker build -t bin-notifier .
 ```
 
+## MCP Server
+
+The MCP server exposes bin collection data via the [Model Context Protocol](https://modelcontextprotocol.io/) over stdio, allowing LLM agents to query collection schedules interactively.
+
+### MCP Tools
+
+| Tool | Description |
+|------|-------------|
+| `get_collections` | Get projected bin collections for a date or range (`today`, `tomorrow`, `this_week`, `next_week`). Uses config schedule rules — fast, no Chrome needed. |
+| `get_next_collection` | Get the next confirmed collection date by scraping the council website. Results cached for 6 hours. Requires Chrome. |
+| `list_locations` | List all configured locations with their scrapers and collection day schedules. |
+
+The MCP server only needs the `locations` section of the config file — phone numbers (`from_number`, `to_number`) and Twilio credentials are not required.
+
+### Running the MCP Server
+
+From a binary:
+
+```bash
+./bin-notifier-mcp -c config.yaml
+```
+
+### MCP Server with Docker
+
+Multi-architecture Docker images for the MCP server are available on GitHub Container Registry:
+
+```bash
+docker pull ghcr.io/stebennett/bin-notifier-mcp:latest
+```
+
+Run with Docker (MCP uses stdio, so `-i` is required to attach stdin):
+
+```bash
+docker run -i --rm \
+  -v /path/to/config.yaml:/config.yaml:ro \
+  ghcr.io/stebennett/bin-notifier-mcp:latest \
+  -c /config.yaml
+```
+
+Build locally:
+
+```bash
+docker build -f Dockerfile.mcp -t bin-notifier-mcp .
+```
+
+### Configuring with Claude Desktop
+
+Add the following to your Claude Desktop config (`~/Library/Application Support/Claude/claude_desktop_config.json` on macOS):
+
+Using a local binary:
+
+```json
+{
+  "mcpServers": {
+    "bin-notifier": {
+      "command": "/path/to/bin-notifier-mcp",
+      "args": ["-c", "/path/to/config.yaml"]
+    }
+  }
+}
+```
+
+Using Docker:
+
+```json
+{
+  "mcpServers": {
+    "bin-notifier": {
+      "command": "docker",
+      "args": [
+        "run", "-i", "--rm",
+        "-v", "/path/to/config.yaml:/config.yaml:ro",
+        "ghcr.io/stebennett/bin-notifier-mcp:latest",
+        "-c", "/config.yaml"
+      ]
+    }
+  }
+}
+```
+
+Restart Claude Desktop after updating the config, then ask questions like "What bins are collected tomorrow?" or "When is the next recycling collection?"
+
 ### Scheduling with Cron
 
 Run daily at 6 PM to notify about tomorrow's collections:
@@ -210,10 +296,17 @@ Run daily at 6 PM to notify about tomorrow's collections:
 
 ```
 bin-notifier/
-├── cmd/notifier/          # Application entry point
-│   ├── main.go            # CLI setup, Notifier orchestration
-│   └── main_test.go       # Integration tests
+├── cmd/
+│   ├── notifier/          # SMS notifier entry point
+│   │   ├── main.go        # CLI setup, Notifier orchestration
+│   │   └── main_test.go   # Integration tests
+│   └── server/            # MCP server entry point
+│       ├── main.go        # Config loading, tool registration, stdio transport
+│       └── main_test.go   # Tool handler tests with mock scrapers
 ├── pkg/
+│   ├── cache/             # Scraper result caching
+│   │   ├── cache.go       # In-memory TTL cache, thread-safe
+│   │   └── cache_test.go
 │   ├── clients/           # External service clients
 │   │   ├── twilioclient.go
 │   │   └── twilioclient_test.go
@@ -226,6 +319,9 @@ bin-notifier/
 │   ├── regexp/            # Regex utilities
 │   │   ├── regexp.go
 │   │   └── regexp_test.go
+│   ├── schedule/          # Collection schedule projection
+│   │   ├── schedule.go    # ProjectCollections() for date range queries
+│   │   └── schedule_test.go
 │   └── scraper/           # Web scraping logic
 │       ├── scraper.go     # BinScraper interface + registry
 │       ├── scraper_test.go
@@ -252,6 +348,7 @@ bin-notifier/
 
 ```bash
 go build -o bin-notifier ./cmd/notifier
+go build -o bin-notifier-mcp ./cmd/server
 ```
 
 ### Running Tests
@@ -279,6 +376,7 @@ go test -cover ./...
 |---------|---------|
 | [chromedp](https://github.com/chromedp/chromedp) | Headless Chrome automation |
 | [twilio-go](https://github.com/twilio/twilio-go) | Twilio SDK for SMS |
+| [mcp-go](https://github.com/mark3labs/mcp-go) | Go MCP SDK for the MCP server |
 | [yaml.v3](https://gopkg.in/yaml.v3) | YAML config file parsing |
 | [testify](https://github.com/stretchr/testify) | Test assertions |
 
@@ -287,7 +385,7 @@ go test -cover ./...
 ### Continuous Integration
 
 Pull requests automatically trigger:
-- Build verification
+- Build verification (both notifier and MCP server)
 - Test suite execution
 
 ### Releases
@@ -299,7 +397,7 @@ git tag v1.0.0
 git push origin v1.0.0
 ```
 
-This triggers automated builds for all supported platforms, creates a GitHub release with downloadable zip archives, and pushes Docker images to GitHub Container Registry.
+This triggers automated builds for all supported platforms (notifier and MCP server binaries), creates a GitHub release with downloadable zip archives, and pushes Docker images for both to GitHub Container Registry (`ghcr.io/stebennett/bin-notifier` and `ghcr.io/stebennett/bin-notifier-mcp`).
 
 ## License
 

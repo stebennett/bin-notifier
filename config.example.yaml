@@ -1,0 +1,27 @@
+# Example config for testing the MCP server
+# No phone numbers needed for MCP server (LoadConfigForMCP skips that validation)
+
+locations:
+  - label: Home
+    scraper: bracknell
+    postcode: "RG12 1AB"
+    address_code: "100080906293"
+    collection_days:
+      - day: tuesday
+        types: ["Recycling", "General Waste"]
+      - day: friday
+        types: ["Garden Waste"]
+        every_n_weeks: 2
+        reference_date: "2026-01-02"
+
+  - label: Office
+    scraper: wokingham
+    postcode: "RG40 1AP"
+    address_code: "100081193948"
+    collection_days:
+      - day: thursday
+        types: ["General Waste", "Food Waste"]
+      - day: monday
+        types: ["Recycling"]
+        every_n_weeks: 2
+        reference_date: "2026-01-05"
