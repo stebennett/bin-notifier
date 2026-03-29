@@ -3,7 +3,7 @@ module github.com/stebennett/bin-notifier
 go 1.26
 
 require (
-	github.com/chromedp/chromedp v0.15.0
+	github.com/chromedp/chromedp v0.15.1
 	github.com/mark3labs/mcp-go v0.46.0
 	gopkg.in/yaml.v3 v3.0.1
 )
@@ -27,7 +27,7 @@ require (
 )
 
 require (
-	github.com/chromedp/cdproto v0.0.0-20260320225252-cf654f46fc63 // indirect
+	github.com/chromedp/cdproto v0.0.0-20260321001828-e3e3800016bc // indirect
 	github.com/chromedp/sysutil v1.1.0 // indirect
 	github.com/gobwas/httphead v0.1.0 // indirect
 	github.com/gobwas/pool v0.2.1 // indirect
