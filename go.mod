@@ -33,6 +33,6 @@ require (
 	github.com/gobwas/pool v0.2.1 // indirect
 	github.com/gobwas/ws v1.4.0 // indirect
 	github.com/stretchr/testify v1.11.1
-	github.com/twilio/twilio-go v1.30.4
+	github.com/twilio/twilio-go v1.30.5
 	golang.org/x/sys v0.42.0 // indirect
 )
