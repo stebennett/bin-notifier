@@ -140,6 +140,33 @@ func (s *Store) ListCollections(location string, from string, types []string) ([
 	return out, latestScraped, nil
 }
 
+// ErrNoMatch is returned by NextCollection when the location is known but no
+// future collection matches the supplied filters.
+var ErrNoMatch = errors.New("no matching collection")
+
+// NextCollection returns the earliest upcoming collection date for location (>= from),
+// optionally filtered by bin types, along with all bin types collected on that date and
+// the scrape timestamp. Returns ErrNoData if location was never registered, or
+// ErrNoMatch if no matching future row exists.
+func (s *Store) NextCollection(location string, from string, types []string) (string, []string, time.Time, error) {
+	rows, scrapedAt, err := s.ListCollections(location, from, types)
+	if err != nil {
+		return "", nil, time.Time{}, err
+	}
+	if len(rows) == 0 {
+		return "", nil, time.Time{}, ErrNoMatch
+	}
+	earliest := rows[0].Date
+	var binTypes []string
+	for _, r := range rows {
+		if r.Date != earliest {
+			break
+		}
+		binTypes = append(binTypes, r.BinType)
+	}
+	return earliest, binTypes, scrapedAt, nil
+}
+
 func repeatPlaceholders(n int) string {
 	s := ""
 	for i := 0; i < n; i++ {

@@ -108,3 +108,62 @@ func TestReplaceCollectionsDoesNotAffectOtherLocations(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, []Collection{{BinType: "Recycling", Date: "2026-05-09"}}, got)
 }
+
+func TestNextCollectionReturnsEarliestDate(t *testing.T) {
+	s, err := Open(":memory:")
+	require.NoError(t, err)
+	defer s.Close()
+
+	scrapedAt := time.Date(2026, 5, 5, 18, 0, 0, 0, time.UTC)
+	require.NoError(t, s.ReplaceCollections("Home", scrapedAt, []Collection{
+		{BinType: "Food Waste", Date: "2026-05-08"},
+		{BinType: "General Waste", Date: "2026-05-07"},
+		{BinType: "Recycling", Date: "2026-05-07"},
+	}))
+
+	date, types, scraped, err := s.NextCollection("Home", "2026-05-05", nil)
+	require.NoError(t, err)
+	require.Equal(t, "2026-05-07", date)
+	require.ElementsMatch(t, []string{"General Waste", "Recycling"}, types)
+	require.Equal(t, scrapedAt.UTC(), scraped.UTC())
+}
+
+func TestNextCollectionFiltersByType(t *testing.T) {
+	s, err := Open(":memory:")
+	require.NoError(t, err)
+	defer s.Close()
+
+	scrapedAt := time.Date(2026, 5, 5, 18, 0, 0, 0, time.UTC)
+	require.NoError(t, s.ReplaceCollections("Home", scrapedAt, []Collection{
+		{BinType: "General Waste", Date: "2026-05-07"},
+		{BinType: "Food Waste", Date: "2026-05-08"},
+	}))
+
+	date, types, _, err := s.NextCollection("Home", "2026-05-05", []string{"Food Waste"})
+	require.NoError(t, err)
+	require.Equal(t, "2026-05-08", date)
+	require.Equal(t, []string{"Food Waste"}, types)
+}
+
+func TestNextCollectionNoMatchReturnsErrNoMatch(t *testing.T) {
+	s, err := Open(":memory:")
+	require.NoError(t, err)
+	defer s.Close()
+
+	scrapedAt := time.Date(2026, 5, 5, 18, 0, 0, 0, time.UTC)
+	require.NoError(t, s.ReplaceCollections("Home", scrapedAt, []Collection{
+		{BinType: "General Waste", Date: "2026-05-07"},
+	}))
+
+	_, _, _, err = s.NextCollection("Home", "2026-05-05", []string{"Garden"})
+	require.ErrorIs(t, err, ErrNoMatch)
+}
+
+func TestNextCollectionUnknownLocationReturnsErrNoData(t *testing.T) {
+	s, err := Open(":memory:")
+	require.NoError(t, err)
+	defer s.Close()
+
+	_, _, _, err = s.NextCollection("Nowhere", "2026-05-05", nil)
+	require.ErrorIs(t, err, ErrNoData)
+}
