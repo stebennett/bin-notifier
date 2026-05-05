@@ -1,0 +1,59 @@
+{{- if not .Values.notifier.twilio.existingSecret }}
+{{- fail "values.notifier.twilio.existingSecret is required (must define TWILIO_ACCOUNT_SID and TWILIO_AUTH_TOKEN)" }}
+{{- end }}
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: {{ include "bin-notifier.fullname" . }}-notifier
+  labels: {{- include "bin-notifier.labels" . | nindent 4 }}
+spec:
+  schedule: {{ .Values.notifier.schedule | quote }}
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 1
+      template:
+        spec:
+          restartPolicy: OnFailure
+          containers:
+            - name: notifier
+              image: {{ include "bin-notifier.notifierImage" . }}
+              imagePullPolicy: {{ .Values.image.notifier.pullPolicy }}
+              args:
+                - "-c"
+                - "/etc/bin-notifier/config.yaml"
+                {{- if .Values.notifier.dryRun }}
+                - "-x"
+                {{- end }}
+              env:
+                - name: BN_API_BASE_URL
+                  value: "http://{{ include "bin-notifier.fullname" . }}-api:{{ .Values.api.service.port }}"
+                - name: BN_API_WRITE_TOKEN
+                  valueFrom:
+                    secretKeyRef:
+                      name: {{ include "bin-notifier.tokensSecretName" . }}
+                      key: write-token
+                - name: TWILIO_ACCOUNT_SID
+                  valueFrom:
+                    secretKeyRef:
+                      name: {{ .Values.notifier.twilio.existingSecret }}
+                      key: TWILIO_ACCOUNT_SID
+                - name: TWILIO_AUTH_TOKEN
+                  valueFrom:
+                    secretKeyRef:
+                      name: {{ .Values.notifier.twilio.existingSecret }}
+                      key: TWILIO_AUTH_TOKEN
+              volumeMounts:
+                - name: config
+                  mountPath: /etc/bin-notifier
+                  readOnly: true
+              resources: {{- toYaml .Values.notifier.resources | nindent 16 }}
+          volumes:
+            - name: config
+              secret:
+                secretName: {{ include "bin-notifier.configSecretName" . }}
+                items:
+                  - key: config.yaml
+                    path: config.yaml
