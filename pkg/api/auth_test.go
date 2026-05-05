@@ -14,6 +14,13 @@ func okHandler() http.Handler {
 	})
 }
 
+func assertUnauthorizedJSON(t *testing.T, rr *httptest.ResponseRecorder) {
+	t.Helper()
+	require.Equal(t, http.StatusUnauthorized, rr.Code)
+	require.Equal(t, "application/json", rr.Header().Get("Content-Type"))
+	require.Contains(t, rr.Body.String(), `"code":"unauthorized"`)
+}
+
 func TestRequireTokenAcceptsCorrectToken(t *testing.T) {
 	mw := RequireToken("read-secret")
 	req := httptest.NewRequest("GET", "/", nil)
@@ -29,8 +36,7 @@ func TestRequireTokenRejectsWrongToken(t *testing.T) {
 	req.Header.Set("Authorization", "Bearer nope")
 	rr := httptest.NewRecorder()
 	mw(okHandler()).ServeHTTP(rr, req)
-	require.Equal(t, http.StatusUnauthorized, rr.Code)
-	require.Contains(t, rr.Body.String(), `"code":"unauthorized"`)
+	assertUnauthorizedJSON(t, rr)
 }
 
 func TestRequireTokenRejectsMissingHeader(t *testing.T) {
@@ -38,7 +44,7 @@ func TestRequireTokenRejectsMissingHeader(t *testing.T) {
 	req := httptest.NewRequest("GET", "/", nil)
 	rr := httptest.NewRecorder()
 	mw(okHandler()).ServeHTTP(rr, req)
-	require.Equal(t, http.StatusUnauthorized, rr.Code)
+	assertUnauthorizedJSON(t, rr)
 }
 
 func TestRequireTokenRejectsMalformedHeader(t *testing.T) {
@@ -47,7 +53,7 @@ func TestRequireTokenRejectsMalformedHeader(t *testing.T) {
 	req.Header.Set("Authorization", "read-secret") // missing "Bearer "
 	rr := httptest.NewRecorder()
 	mw(okHandler()).ServeHTTP(rr, req)
-	require.Equal(t, http.StatusUnauthorized, rr.Code)
+	assertUnauthorizedJSON(t, rr)
 }
 
 func TestRequireTokenEmptyConfiguredTokenAlwaysRejects(t *testing.T) {
@@ -56,5 +62,5 @@ func TestRequireTokenEmptyConfiguredTokenAlwaysRejects(t *testing.T) {
 	req.Header.Set("Authorization", "Bearer anything")
 	rr := httptest.NewRecorder()
 	mw(okHandler()).ServeHTTP(rr, req)
-	require.Equal(t, http.StatusUnauthorized, rr.Code)
+	assertUnauthorizedJSON(t, rr)
 }

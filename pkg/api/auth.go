@@ -2,7 +2,6 @@ package api
 
 import (
 	"crypto/subtle"
-	"encoding/json"
 	"net/http"
 	"strings"
 )
@@ -27,15 +26,4 @@ func RequireToken(expected string) Middleware {
 			next.ServeHTTP(w, r)
 		})
 	}
-}
-
-type errorBody struct {
-	Error string `json:"error"`
-	Code  string `json:"code"`
-}
-
-func writeError(w http.ResponseWriter, status int, code, msg string) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(status)
-	_ = json.NewEncoder(w).Encode(errorBody{Error: msg, Code: code})
 }
