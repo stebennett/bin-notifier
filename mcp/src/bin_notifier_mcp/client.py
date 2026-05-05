@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from typing import Any
+from urllib.parse import quote
 
 import httpx
 
@@ -58,7 +59,7 @@ class BinNotifierClient:
             params["from"] = from_date
         if bin_types:
             params["type"] = bin_types
-        return await self._get(f"/v1/locations/{label}/collections", params=params or None)
+        return await self._get(f"/v1/locations/{quote(label, safe='')}/collections", params=params or None)
 
     async def get_next_collection(
         self, label: str, *, bin_type: str | None = None, from_date: str | None = None
@@ -68,7 +69,7 @@ class BinNotifierClient:
             params["from"] = from_date
         if bin_type:
             params["type"] = bin_type
-        return await self._get(f"/v1/locations/{label}/collections/next", params=params or None)
+        return await self._get(f"/v1/locations/{quote(label, safe='')}/collections/next", params=params or None)
 
 
 def _msg(resp: httpx.Response) -> str:

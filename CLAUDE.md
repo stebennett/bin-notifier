@@ -170,5 +170,5 @@ deploy/helm/bin-notifier/  - Helm chart (API Deployment + notifier CronJob)
 
 ## GitHub Actions
 
-- **CI** (`.github/workflows/ci.yml`) - Runs on pull requests; builds the notifier, runs tests
-- **Release** (`.github/workflows/release.yml`) - Triggers on `vX.Y.Z` tags; builds notifier binaries (linux/amd64, linux/arm64, darwin/arm64), creates a GitHub release with zip artifacts, and pushes Docker images to ghcr.io
+- **CI** (`.github/workflows/ci.yml`) - Runs on pull requests; builds the notifier and the API server, runs Go tests, runs Python MCP pytest, and lints/templates the Helm chart
+- **Release** (`.github/workflows/release.yml`) - Triggers on `vX.Y.Z` tags; builds notifier and API binaries (linux/amd64, linux/arm64, darwin/arm64), creates a GitHub release with zip artifacts, and pushes three Docker images to ghcr.io: `bin-notifier`, `bin-notifier-api`, `bin-notifier-mcp`
