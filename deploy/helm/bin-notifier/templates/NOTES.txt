@@ -1,0 +1,11 @@
+bin-notifier installed.
+
+API service: {{ include "bin-notifier.fullname" . }}-api (port {{ .Values.api.service.port }})
+{{- if .Values.api.ingress.enabled }}
+Ingress: https://{{ .Values.api.ingress.host }}/healthz
+{{- end }}
+
+Tokens secret: {{ include "bin-notifier.tokensSecretName" . }}
+  (keys: read-token, write-token)
+
+Nightly schedule: {{ .Values.notifier.schedule }}
