@@ -167,3 +167,18 @@ func TestNextCollectionUnknownLocationReturnsErrNoData(t *testing.T) {
 	_, _, _, err = s.NextCollection("Nowhere", "2026-05-05", nil)
 	require.ErrorIs(t, err, ErrNoData)
 }
+
+func TestNextCollectionClearedLocationReturnsErrNoMatch(t *testing.T) {
+	s, err := Open(":memory:")
+	require.NoError(t, err)
+	defer s.Close()
+
+	scrapedAt := time.Date(2026, 5, 5, 18, 0, 0, 0, time.UTC)
+	require.NoError(t, s.ReplaceCollections("Home", scrapedAt, []Collection{
+		{BinType: "General Waste", Date: "2026-05-07"},
+	}))
+	require.NoError(t, s.ReplaceCollections("Home", scrapedAt, nil))
+
+	_, _, _, err = s.NextCollection("Home", "2026-05-05", nil)
+	require.ErrorIs(t, err, ErrNoMatch)
+}

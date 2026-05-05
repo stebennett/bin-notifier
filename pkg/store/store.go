@@ -91,6 +91,7 @@ func (s *Store) ReplaceCollections(location string, scrapedAt time.Time, items [
 }
 
 // ListCollections returns rows for location with date >= from, optionally filtered by bin types.
+// Rows are returned ordered by date ASC, bin_type ASC — NextCollection depends on this contract.
 // Returns ErrNoData if the location has never been written to (no ReplaceCollections call yet).
 func (s *Store) ListCollections(location string, from string, types []string) ([]Collection, time.Time, error) {
 	var seen bool
