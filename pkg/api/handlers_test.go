@@ -108,3 +108,62 @@ func TestListCollectionsDefaultsFromToToday(t *testing.T) {
 	require.Equal(t, http.StatusOK, rr.Code)
 	require.True(t, strings.Contains(rr.Body.String(), `"collections"`))
 }
+
+func TestNextCollectionReturnsEarliest(t *testing.T) {
+	srv := newTestServer(t)
+	seed(t, srv)
+
+	rr := httptest.NewRecorder()
+	srv.Handler().ServeHTTP(rr, authedReq("GET", "/v1/locations/Home/collections/next?from=2026-05-05", "read-token"))
+
+	require.Equal(t, http.StatusOK, rr.Code)
+	var got struct {
+		Location  string   `json:"location"`
+		ScrapedAt string   `json:"scraped_at"`
+		Date      string   `json:"date"`
+		BinTypes  []string `json:"bin_types"`
+	}
+	require.NoError(t, json.NewDecoder(rr.Body).Decode(&got))
+	require.Equal(t, "Home", got.Location)
+	require.Equal(t, "2026-05-07", got.Date)
+	require.Equal(t, []string{"General Waste"}, got.BinTypes)
+}
+
+func TestNextCollectionFiltersByType(t *testing.T) {
+	srv := newTestServer(t)
+	seed(t, srv)
+
+	rr := httptest.NewRecorder()
+	srv.Handler().ServeHTTP(rr, authedReq("GET",
+		"/v1/locations/Home/collections/next?from=2026-05-05&type=Food%20Waste", "read-token"))
+
+	require.Equal(t, http.StatusOK, rr.Code)
+	require.Contains(t, rr.Body.String(), `"2026-05-08"`)
+}
+
+func TestNextCollectionNoMatchReturns404(t *testing.T) {
+	srv := newTestServer(t)
+	seed(t, srv)
+
+	rr := httptest.NewRecorder()
+	srv.Handler().ServeHTTP(rr, authedReq("GET",
+		"/v1/locations/Home/collections/next?from=2026-05-05&type=Garden", "read-token"))
+	require.Equal(t, http.StatusNotFound, rr.Code)
+	require.Contains(t, rr.Body.String(), `"no_match"`)
+}
+
+func TestNextCollectionUnknownLocationReturns404(t *testing.T) {
+	srv := newTestServer(t)
+	rr := httptest.NewRecorder()
+	srv.Handler().ServeHTTP(rr, authedReq("GET", "/v1/locations/Nowhere/collections/next", "read-token"))
+	require.Equal(t, http.StatusNotFound, rr.Code)
+	require.Contains(t, rr.Body.String(), `"unknown_location"`)
+}
+
+func TestNextCollectionKnownLocationNoDataReturns503(t *testing.T) {
+	srv := newTestServer(t)
+	rr := httptest.NewRecorder()
+	srv.Handler().ServeHTTP(rr, authedReq("GET", "/v1/locations/Home/collections/next", "read-token"))
+	require.Equal(t, http.StatusServiceUnavailable, rr.Code)
+	require.Contains(t, rr.Body.String(), `"no_data"`)
+}

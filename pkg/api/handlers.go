@@ -38,6 +38,16 @@ type collectionsResponse struct {
 	Collections []store.Collection `json:"collections"`
 }
 
+// parseFromAndTypes returns the `from` query param (defaulting to today UTC)
+// and the repeatable `type` filter values.
+func parseFromAndTypes(r *http.Request) (string, []string) {
+	from := r.URL.Query().Get("from")
+	if from == "" {
+		from = time.Now().UTC().Format("2006-01-02")
+	}
+	return from, r.URL.Query()["type"]
+}
+
 func (s *Server) handleListCollections(w http.ResponseWriter, r *http.Request) {
 	label := r.PathValue("label")
 	if !s.knownLocation(label) {
@@ -45,11 +55,7 @@ func (s *Server) handleListCollections(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	from := r.URL.Query().Get("from")
-	if from == "" {
-		from = time.Now().UTC().Format("2006-01-02")
-	}
-	types := r.URL.Query()["type"]
+	from, types := parseFromAndTypes(r)
 
 	rows, scrapedAt, err := s.opts.Store.ListCollections(label, from, types)
 	if errors.Is(err, store.ErrNoData) {
@@ -81,8 +87,42 @@ func (s *Server) knownLocation(label string) bool {
 	}
 	return false
 }
+type nextResponse struct {
+	Location  string   `json:"location"`
+	ScrapedAt string   `json:"scraped_at"`
+	Date      string   `json:"date"`
+	BinTypes  []string `json:"bin_types"`
+}
+
 func (s *Server) handleNextCollection(w http.ResponseWriter, r *http.Request) {
-	writeError(w, http.StatusNotImplemented, "not_implemented", "")
+	label := r.PathValue("label")
+	if !s.knownLocation(label) {
+		writeError(w, http.StatusNotFound, "unknown_location", "no such location: "+label)
+		return
+	}
+
+	from, types := parseFromAndTypes(r)
+
+	date, binTypes, scrapedAt, err := s.opts.Store.NextCollection(label, from, types)
+	switch {
+	case errors.Is(err, store.ErrNoData):
+		writeError(w, http.StatusServiceUnavailable, "no_data", "no data cached for location "+label)
+		return
+	case errors.Is(err, store.ErrNoMatch):
+		writeError(w, http.StatusNotFound, "no_match", "no matching collection")
+		return
+	case err != nil:
+		writeError(w, http.StatusInternalServerError, "internal_error", err.Error())
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(nextResponse{
+		Location:  label,
+		ScrapedAt: scrapedAt.UTC().Format(time.RFC3339),
+		Date:      date,
+		BinTypes:  binTypes,
+	})
 }
 func (s *Server) handlePutCollections(w http.ResponseWriter, r *http.Request) {
 	writeError(w, http.StatusNotImplemented, "not_implemented", "")
