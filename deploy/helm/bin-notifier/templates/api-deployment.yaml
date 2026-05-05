@@ -1,0 +1,66 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "bin-notifier.fullname" . }}-api
+  labels: {{- include "bin-notifier.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.api.replicaCount }}
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: bin-notifier
+      app.kubernetes.io/instance: {{ .Release.Name }}
+      app.kubernetes.io/component: api
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: bin-notifier
+        app.kubernetes.io/instance: {{ .Release.Name }}
+        app.kubernetes.io/component: api
+    spec:
+      containers:
+        - name: api
+          image: {{ include "bin-notifier.apiImage" . }}
+          imagePullPolicy: {{ .Values.image.api.pullPolicy }}
+          args: ["-c", "/etc/bin-notifier/config.yaml"]
+          env:
+            - name: BN_API_DB_PATH
+              value: /var/lib/bin-notifier/cache.db
+            - name: BN_API_LISTEN_ADDR
+              value: ":8080"
+            - name: BN_API_READ_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "bin-notifier.tokensSecretName" . }}
+                  key: read-token
+            - name: BN_API_WRITE_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "bin-notifier.tokensSecretName" . }}
+                  key: write-token
+          ports:
+            - containerPort: 8080
+              name: http
+          readinessProbe:
+            httpGet: { path: /healthz, port: http }
+          livenessProbe:
+            httpGet: { path: /healthz, port: http }
+            initialDelaySeconds: 10
+          volumeMounts:
+            - name: config
+              mountPath: /etc/bin-notifier
+              readOnly: true
+            - name: data
+              mountPath: /var/lib/bin-notifier
+          resources: {{- toYaml .Values.api.resources | nindent 12 }}
+      volumes:
+        - name: config
+          secret:
+            secretName: {{ include "bin-notifier.configSecretName" . }}
+            items:
+              - key: config.yaml
+                path: config.yaml
+        - name: data
+          persistentVolumeClaim:
+            claimName: {{ include "bin-notifier.fullname" . }}-api
