@@ -2,9 +2,11 @@ package main
 
 import (
 	"errors"
+	"fmt"
 	"testing"
 	"time"
 
+	"github.com/stebennett/bin-notifier/pkg/apiclient"
 	"github.com/stebennett/bin-notifier/pkg/config"
 	"github.com/stebennett/bin-notifier/pkg/scraper"
 	"github.com/stretchr/testify/assert"
@@ -36,6 +38,26 @@ type smsCall struct {
 func (m *mockSMSClient) SendSms(from string, to string, body string, dryRun bool) error {
 	m.calls = append(m.calls, smsCall{from: from, to: to, body: body, dryRun: dryRun})
 	return m.err
+}
+
+// mockAPIClient is a mock implementation of APIClient for testing
+type mockAPIClient struct {
+	calls []apiCall
+	fail  bool
+}
+
+type apiCall struct {
+	Label     string
+	ScrapedAt time.Time
+	Items     []apiclient.Collection
+}
+
+func (m *mockAPIClient) PushCollections(label string, scrapedAt time.Time, items []apiclient.Collection) error {
+	m.calls = append(m.calls, apiCall{Label: label, ScrapedAt: scrapedAt, Items: items})
+	if m.fail {
+		return fmt.Errorf("simulated api failure")
+	}
+	return nil
 }
 
 func newMockFactory(scrapers map[string]*mockScraper) ScraperFactory {
@@ -71,8 +93,8 @@ func createTestConfig() config.Config {
 }
 
 func TestNotifier_SendsSmsWhenCollectionTomorrow(t *testing.T) {
-	today := time.Date(2024, 1, 15, 10, 0, 0, 0, time.UTC)    // Monday
-	tomorrow := time.Date(2024, 1, 16, 0, 0, 0, 0, time.UTC)  // Tuesday
+	today := time.Date(2024, 1, 15, 10, 0, 0, 0, time.UTC)   // Monday
+	tomorrow := time.Date(2024, 1, 16, 0, 0, 0, 0, time.UTC) // Tuesday
 
 	mockScr := &mockScraper{
 		binTimes: []scraper.BinTime{
@@ -85,6 +107,7 @@ func TestNotifier_SendsSmsWhenCollectionTomorrow(t *testing.T) {
 	notifier := &Notifier{
 		ScraperFactory: newMockFactory(map[string]*mockScraper{"bracknell": mockScr}),
 		SMSClient:      mockSMS,
+		APIClient:      noopAPIClient{},
 		Clock:          func() time.Time { return today },
 	}
 
@@ -105,7 +128,7 @@ func TestNotifier_SendsSmsWhenCollectionTomorrow(t *testing.T) {
 
 func TestNotifier_MessagePrefixedWithLabel(t *testing.T) {
 	today := time.Date(2024, 1, 15, 10, 0, 0, 0, time.UTC)   // Monday
-	tomorrow := time.Date(2024, 1, 16, 0, 0, 0, 0, time.UTC)  // Tuesday
+	tomorrow := time.Date(2024, 1, 16, 0, 0, 0, 0, time.UTC) // Tuesday
 
 	mockScr := &mockScraper{
 		binTimes: []scraper.BinTime{
@@ -117,6 +140,7 @@ func TestNotifier_MessagePrefixedWithLabel(t *testing.T) {
 	notifier := &Notifier{
 		ScraperFactory: newMockFactory(map[string]*mockScraper{"bracknell": mockScr}),
 		SMSClient:      mockSMS,
+		APIClient:      noopAPIClient{},
 		Clock:          func() time.Time { return today },
 	}
 
@@ -128,8 +152,8 @@ func TestNotifier_MessagePrefixedWithLabel(t *testing.T) {
 }
 
 func TestNotifier_SendsSmsOnRegularDayNoCollections(t *testing.T) {
-	today := time.Date(2024, 1, 15, 10, 0, 0, 0, time.UTC)   // Monday
-	nextWeek := time.Date(2024, 1, 22, 0, 0, 0, 0, time.UTC)  // Monday +1 week
+	today := time.Date(2024, 1, 15, 10, 0, 0, 0, time.UTC)  // Monday
+	nextWeek := time.Date(2024, 1, 22, 0, 0, 0, 0, time.UTC) // Monday +1 week
 
 	mockScr := &mockScraper{
 		binTimes: []scraper.BinTime{
@@ -141,6 +165,7 @@ func TestNotifier_SendsSmsOnRegularDayNoCollections(t *testing.T) {
 	notifier := &Notifier{
 		ScraperFactory: newMockFactory(map[string]*mockScraper{"bracknell": mockScr}),
 		SMSClient:      mockSMS,
+		APIClient:      noopAPIClient{},
 		Clock:          func() time.Time { return today },
 	}
 
@@ -156,8 +181,8 @@ func TestNotifier_SendsSmsOnRegularDayNoCollections(t *testing.T) {
 }
 
 func TestNotifier_NoSmsWhenNoCollectionsAndNotRegularDay(t *testing.T) {
-	today := time.Date(2024, 1, 15, 10, 0, 0, 0, time.UTC)   // Monday
-	nextWeek := time.Date(2024, 1, 22, 0, 0, 0, 0, time.UTC)  // Monday +1 week
+	today := time.Date(2024, 1, 15, 10, 0, 0, 0, time.UTC)  // Monday
+	nextWeek := time.Date(2024, 1, 22, 0, 0, 0, 0, time.UTC) // Monday +1 week
 
 	mockScr := &mockScraper{
 		binTimes: []scraper.BinTime{
@@ -169,6 +194,7 @@ func TestNotifier_NoSmsWhenNoCollectionsAndNotRegularDay(t *testing.T) {
 	notifier := &Notifier{
 		ScraperFactory: newMockFactory(map[string]*mockScraper{"bracknell": mockScr}),
 		SMSClient:      mockSMS,
+		APIClient:      noopAPIClient{},
 		Clock:          func() time.Time { return today },
 	}
 
@@ -188,7 +214,7 @@ func TestNotifier_NoSmsWhenNoCollectionsAndNotRegularDay(t *testing.T) {
 
 func TestNotifier_ScraperErrorContinuesOtherLocations(t *testing.T) {
 	today := time.Date(2024, 1, 15, 10, 0, 0, 0, time.UTC)   // Monday
-	tomorrow := time.Date(2024, 1, 16, 0, 0, 0, 0, time.UTC)  // Tuesday
+	tomorrow := time.Date(2024, 1, 16, 0, 0, 0, 0, time.UTC) // Tuesday
 
 	failScr := &mockScraper{err: errors.New("scraper failed")}
 	okScr := &mockScraper{
@@ -204,6 +230,7 @@ func TestNotifier_ScraperErrorContinuesOtherLocations(t *testing.T) {
 			"wokingham": okScr,
 		}),
 		SMSClient: mockSMS,
+		APIClient: noopAPIClient{},
 		Clock:     func() time.Time { return today },
 	}
 
@@ -228,7 +255,7 @@ func TestNotifier_ScraperErrorContinuesOtherLocations(t *testing.T) {
 
 func TestNotifier_SmsErrorRecordedInResult(t *testing.T) {
 	today := time.Date(2024, 1, 15, 10, 0, 0, 0, time.UTC)   // Monday
-	tomorrow := time.Date(2024, 1, 16, 0, 0, 0, 0, time.UTC)  // Tuesday
+	tomorrow := time.Date(2024, 1, 16, 0, 0, 0, 0, time.UTC) // Tuesday
 
 	mockScr := &mockScraper{
 		binTimes: []scraper.BinTime{
@@ -240,6 +267,7 @@ func TestNotifier_SmsErrorRecordedInResult(t *testing.T) {
 	notifier := &Notifier{
 		ScraperFactory: newMockFactory(map[string]*mockScraper{"bracknell": mockScr}),
 		SMSClient:      mockSMS,
+		APIClient:      noopAPIClient{},
 		Clock:          func() time.Time { return today },
 	}
 
@@ -265,6 +293,7 @@ func TestNotifier_UsesTodayDateFromConfig(t *testing.T) {
 	notifier := &Notifier{
 		ScraperFactory: newMockFactory(map[string]*mockScraper{"bracknell": mockScr}),
 		SMSClient:      mockSMS,
+		APIClient:      noopAPIClient{},
 		Clock:          clock,
 	}
 
@@ -285,6 +314,7 @@ func TestNotifier_InvalidTodayDateReturnsError(t *testing.T) {
 	notifier := &Notifier{
 		ScraperFactory: newMockFactory(map[string]*mockScraper{"bracknell": mockScr}),
 		SMSClient:      mockSMS,
+		APIClient:      noopAPIClient{},
 		Clock:          func() time.Time { return time.Now() },
 	}
 
@@ -299,7 +329,7 @@ func TestNotifier_InvalidTodayDateReturnsError(t *testing.T) {
 
 func TestNotifier_DryRunPassedToSmsClient(t *testing.T) {
 	today := time.Date(2024, 1, 15, 10, 0, 0, 0, time.UTC)   // Monday
-	tomorrow := time.Date(2024, 1, 16, 0, 0, 0, 0, time.UTC)  // Tuesday
+	tomorrow := time.Date(2024, 1, 16, 0, 0, 0, 0, time.UTC) // Tuesday
 
 	mockScr := &mockScraper{
 		binTimes: []scraper.BinTime{
@@ -311,6 +341,7 @@ func TestNotifier_DryRunPassedToSmsClient(t *testing.T) {
 	notifier := &Notifier{
 		ScraperFactory: newMockFactory(map[string]*mockScraper{"bracknell": mockScr}),
 		SMSClient:      mockSMS,
+		APIClient:      noopAPIClient{},
 		Clock:          func() time.Time { return today },
 	}
 
@@ -326,7 +357,7 @@ func TestNotifier_DryRunPassedToSmsClient(t *testing.T) {
 
 func TestNotifier_MultipleLocations(t *testing.T) {
 	today := time.Date(2024, 1, 15, 10, 0, 0, 0, time.UTC)   // Monday
-	tomorrow := time.Date(2024, 1, 16, 0, 0, 0, 0, time.UTC)  // Tuesday
+	tomorrow := time.Date(2024, 1, 16, 0, 0, 0, 0, time.UTC) // Tuesday
 
 	homeScraper := &mockScraper{
 		binTimes: []scraper.BinTime{
@@ -346,6 +377,7 @@ func TestNotifier_MultipleLocations(t *testing.T) {
 			"wokingham": officeScraper,
 		}),
 		SMSClient: mockSMS,
+		APIClient: noopAPIClient{},
 		Clock:     func() time.Time { return today },
 	}
 
@@ -376,6 +408,7 @@ func TestNotifier_UnknownScraperRecordsError(t *testing.T) {
 	notifier := &Notifier{
 		ScraperFactory: newMockFactory(map[string]*mockScraper{}),
 		SMSClient:      mockSMS,
+		APIClient:      noopAPIClient{},
 		Clock:          func() time.Time { return time.Now() },
 	}
 
@@ -406,6 +439,7 @@ func TestNotifier_FortnightlyOnWeekSendsWarning(t *testing.T) {
 	notifier := &Notifier{
 		ScraperFactory: newMockFactory(map[string]*mockScraper{"bracknell": mockScr}),
 		SMSClient:      mockSMS,
+		APIClient:      noopAPIClient{},
 		Clock:          func() time.Time { return today },
 	}
 
@@ -450,6 +484,7 @@ func TestNotifier_FortnightlyOffWeekNoMessage(t *testing.T) {
 	notifier := &Notifier{
 		ScraperFactory: newMockFactory(map[string]*mockScraper{"bracknell": mockScr}),
 		SMSClient:      mockSMS,
+		APIClient:      noopAPIClient{},
 		Clock:          func() time.Time { return today },
 	}
 
@@ -483,8 +518,8 @@ func TestNotifier_FortnightlyOffWeekNoMessage(t *testing.T) {
 }
 
 func TestNotifier_MultipleCollectionDaysWarnings(t *testing.T) {
-	today := time.Date(2024, 1, 15, 10, 0, 0, 0, time.UTC)   // Monday
-	nextWeek := time.Date(2024, 1, 22, 0, 0, 0, 0, time.UTC)  // Monday +1 week
+	today := time.Date(2024, 1, 15, 10, 0, 0, 0, time.UTC)  // Monday
+	nextWeek := time.Date(2024, 1, 22, 0, 0, 0, 0, time.UTC) // Monday +1 week
 
 	mockScr := &mockScraper{
 		binTimes: []scraper.BinTime{
@@ -496,6 +531,7 @@ func TestNotifier_MultipleCollectionDaysWarnings(t *testing.T) {
 	notifier := &Notifier{
 		ScraperFactory: newMockFactory(map[string]*mockScraper{"bracknell": mockScr}),
 		SMSClient:      mockSMS,
+		APIClient:      noopAPIClient{},
 		Clock:          func() time.Time { return today },
 	}
 
@@ -524,4 +560,55 @@ func TestNotifier_MultipleCollectionDaysWarnings(t *testing.T) {
 	assert.Len(t, mockSMS.calls, 2)
 	assert.Contains(t, mockSMS.calls[0].body, "Recycling")
 	assert.Contains(t, mockSMS.calls[1].body, "Food Waste")
+}
+
+func TestNotifier_PushesScrapedDataBeforeSMS(t *testing.T) {
+	tomorrow := time.Date(2024, 1, 16, 0, 0, 0, 0, time.UTC) // Tuesday
+	mockScr := &mockScraper{
+		binTimes: []scraper.BinTime{{Type: "General Waste", CollectionTime: tomorrow}},
+	}
+	mockSMS := &mockSMSClient{}
+	mockAPI := &mockAPIClient{}
+
+	cfg := createTestConfig()
+	cfg.TodayDate = "2024-01-15"
+
+	n := &Notifier{
+		ScraperFactory: newMockFactory(map[string]*mockScraper{"bracknell": mockScr}),
+		SMSClient:      mockSMS,
+		APIClient:      mockAPI,
+		Clock:          func() time.Time { return time.Date(2024, 1, 15, 12, 0, 0, 0, time.UTC) },
+	}
+	results := n.Run(cfg)
+
+	assert.Len(t, results, 1)
+	assert.NoError(t, results[0].Error)
+	assert.Len(t, mockAPI.calls, 1, "API push should have been attempted")
+	assert.Equal(t, "Home", mockAPI.calls[0].Label)
+	assert.Equal(t, []apiclient.Collection{{BinType: "General Waste", Date: "2024-01-16"}}, mockAPI.calls[0].Items)
+	assert.NotEmpty(t, mockSMS.calls, "SMS should still be sent")
+}
+
+func TestNotifier_PushFailureDoesNotBlockSMS(t *testing.T) {
+	tomorrow := time.Date(2024, 1, 16, 0, 0, 0, 0, time.UTC)
+	mockScr := &mockScraper{
+		binTimes: []scraper.BinTime{{Type: "General Waste", CollectionTime: tomorrow}},
+	}
+	mockSMS := &mockSMSClient{}
+	mockAPI := &mockAPIClient{fail: true}
+
+	cfg := createTestConfig()
+	cfg.TodayDate = "2024-01-15"
+
+	n := &Notifier{
+		ScraperFactory: newMockFactory(map[string]*mockScraper{"bracknell": mockScr}),
+		SMSClient:      mockSMS,
+		APIClient:      mockAPI,
+		Clock:          func() time.Time { return time.Date(2024, 1, 15, 12, 0, 0, 0, time.UTC) },
+	}
+	results := n.Run(cfg)
+
+	assert.Len(t, results, 1)
+	assert.NoError(t, results[0].Error, "push failure must not surface as a notifier error")
+	assert.NotEmpty(t, mockSMS.calls, "SMS should still be sent despite push failure")
 }
