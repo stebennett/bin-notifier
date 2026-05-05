@@ -1,6 +1,7 @@
 package api
 
 import (
+	"bytes"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -166,4 +167,56 @@ func TestNextCollectionKnownLocationNoDataReturns503(t *testing.T) {
 	srv.Handler().ServeHTTP(rr, authedReq("GET", "/v1/locations/Home/collections/next", "read-token"))
 	require.Equal(t, http.StatusServiceUnavailable, rr.Code)
 	require.Contains(t, rr.Body.String(), `"no_data"`)
+}
+
+func putReq(target, token, body string) *http.Request {
+	req := httptest.NewRequest("PUT", target, bytes.NewBufferString(body))
+	req.Header.Set("Authorization", "Bearer "+token)
+	req.Header.Set("Content-Type", "application/json")
+	return req
+}
+
+func TestPutCollectionsReplacesAndReturns204(t *testing.T) {
+	srv := newTestServer(t)
+	body := `{"scraped_at":"2026-05-05T18:00:00Z","collections":[
+		{"bin_type":"General Waste","date":"2026-05-07"}
+	]}`
+	rr := httptest.NewRecorder()
+	srv.Handler().ServeHTTP(rr, putReq("/v1/locations/Home/collections", "write-token", body))
+	require.Equal(t, http.StatusNoContent, rr.Code)
+
+	rows, _, err := srv.opts.Store.ListCollections("Home", "2026-05-05", nil)
+	require.NoError(t, err)
+	require.Len(t, rows, 1)
+	require.Equal(t, "General Waste", rows[0].BinType)
+}
+
+func TestPutCollectionsRequiresWriteToken(t *testing.T) {
+	srv := newTestServer(t)
+	rr := httptest.NewRecorder()
+	srv.Handler().ServeHTTP(rr, putReq("/v1/locations/Home/collections", "read-token", `{}`))
+	require.Equal(t, http.StatusUnauthorized, rr.Code)
+}
+
+func TestPutCollectionsUnknownLocationReturns404(t *testing.T) {
+	srv := newTestServer(t)
+	rr := httptest.NewRecorder()
+	srv.Handler().ServeHTTP(rr, putReq("/v1/locations/Nowhere/collections", "write-token",
+		`{"scraped_at":"2026-05-05T18:00:00Z","collections":[]}`))
+	require.Equal(t, http.StatusNotFound, rr.Code)
+}
+
+func TestPutCollectionsBadJSONReturns400(t *testing.T) {
+	srv := newTestServer(t)
+	rr := httptest.NewRecorder()
+	srv.Handler().ServeHTTP(rr, putReq("/v1/locations/Home/collections", "write-token", `not json`))
+	require.Equal(t, http.StatusBadRequest, rr.Code)
+}
+
+func TestPutCollectionsBadDateReturns400(t *testing.T) {
+	srv := newTestServer(t)
+	rr := httptest.NewRecorder()
+	srv.Handler().ServeHTTP(rr, putReq("/v1/locations/Home/collections", "write-token",
+		`{"scraped_at":"2026-05-05T18:00:00Z","collections":[{"bin_type":"X","date":"not-a-date"}]}`))
+	require.Equal(t, http.StatusBadRequest, rr.Code)
 }

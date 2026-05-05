@@ -124,6 +124,44 @@ func (s *Server) handleNextCollection(w http.ResponseWriter, r *http.Request) {
 		BinTypes:  binTypes,
 	})
 }
+type putRequest struct {
+	ScrapedAt   string             `json:"scraped_at"`
+	Collections []store.Collection `json:"collections"`
+}
+
 func (s *Server) handlePutCollections(w http.ResponseWriter, r *http.Request) {
-	writeError(w, http.StatusNotImplemented, "not_implemented", "")
+	label := r.PathValue("label")
+	if !s.knownLocation(label) {
+		writeError(w, http.StatusNotFound, "unknown_location", "no such location: "+label)
+		return
+	}
+
+	var body putRequest
+	dec := json.NewDecoder(r.Body)
+	dec.DisallowUnknownFields()
+	if err := dec.Decode(&body); err != nil {
+		writeError(w, http.StatusBadRequest, "bad_request", "invalid JSON: "+err.Error())
+		return
+	}
+	scrapedAt, err := time.Parse(time.RFC3339, body.ScrapedAt)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "bad_request", "invalid scraped_at: "+err.Error())
+		return
+	}
+	for _, c := range body.Collections {
+		if c.BinType == "" {
+			writeError(w, http.StatusBadRequest, "bad_request", "collection.bin_type is required")
+			return
+		}
+		if _, err := time.Parse("2006-01-02", c.Date); err != nil {
+			writeError(w, http.StatusBadRequest, "bad_request", "invalid collection.date: "+c.Date)
+			return
+		}
+	}
+
+	if err := s.opts.Store.ReplaceCollections(label, scrapedAt, body.Collections); err != nil {
+		writeError(w, http.StatusInternalServerError, "internal_error", err.Error())
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
 }
