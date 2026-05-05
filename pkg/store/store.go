@@ -54,7 +54,10 @@ type Collection struct {
 	Date    string `json:"date"` // YYYY-MM-DD
 }
 
-// ErrNoData is returned when a location has never been written to the store.
+// ErrNoData is returned when a location has never been registered with the store
+// (i.e. has never been the target of a ReplaceCollections call). A location that has
+// been registered but currently holds zero rows (e.g. cleared via ReplaceCollections
+// with empty items) does not return ErrNoData.
 var ErrNoData = errors.New("no data for location")
 
 // ReplaceCollections atomically replaces all collection rows for location with items,
@@ -133,15 +136,6 @@ func (s *Store) ListCollections(location string, from string, types []string) ([
 	}
 	if err := rows.Err(); err != nil {
 		return nil, time.Time{}, err
-	}
-	if latestScraped.IsZero() {
-		// Location seen but no rows match the filters / from — fetch any scraped_at for context.
-		var scrapedStr string
-		if err := s.db.QueryRow(`SELECT scraped_at FROM collections WHERE location = ? LIMIT 1`, location).Scan(&scrapedStr); err == nil {
-			if ts, perr := time.Parse(time.RFC3339, scrapedStr); perr == nil {
-				latestScraped = ts
-			}
-		}
 	}
 	return out, latestScraped, nil
 }
