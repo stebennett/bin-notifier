@@ -22,7 +22,6 @@ jobs:
       - name: Build
         run: |
           go build -v ./cmd/notifier
-          go build -v ./cmd/server
 
       - name: Test
         run: go test -v ./...
