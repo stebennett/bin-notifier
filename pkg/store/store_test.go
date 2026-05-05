@@ -13,6 +13,11 @@ func TestOpenCreatesSchema(t *testing.T) {
 	require.NoError(t, err)
 	defer s.Close()
 
+	var name string
+	require.NoError(t, s.db.QueryRow(
+		`SELECT name FROM sqlite_master WHERE type='table' AND name='collections'`).Scan(&name))
+	require.Equal(t, "collections", name)
+
 	// Re-opening an existing file must succeed (schema migration is idempotent).
 	s2, err := Open(dbPath)
 	require.NoError(t, err)
