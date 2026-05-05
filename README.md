@@ -15,6 +15,18 @@ A Go application that scrapes bin collection schedules from council websites and
 - Dry-run mode for testing without sending SMS
 - Configurable date override for testing
 
+## Architecture
+
+bin-notifier is split across three deployable artifacts:
+
+- **`bin-notifier`** (`cmd/notifier`) — nightly scrape job. Reads council websites, sends SMS via Twilio, and now also PUTs scraped data to the API.
+- **`bin-notifier-api`** (`cmd/api`) — long-running HTTP server backed by a SQLite cache. Receives scraped data from the notifier and serves read endpoints (locations, collections, next collection).
+- **`bin-notifier-mcp`** (`mcp/`) — Python/uv FastMCP server. Consumes the API and exposes bin collection tools to LLM agents (Claude Desktop, Claude Code, metamcp).
+
+A Helm chart at `deploy/helm/bin-notifier/` packages the API and the notifier CronJob for k3s/k8s. The MCP server is deployed separately (typically in metamcp or run locally).
+
+See `docs/superpowers/specs/2026-05-05-bin-notifier-api-and-python-mcp-design.md` for the full design.
+
 ## Prerequisites
 
 - Go 1.26 or later
@@ -200,7 +212,7 @@ docker build -t bin-notifier .
 
 ## MCP Server
 
-An MCP server for querying bin collection schedules from LLM agents lives under `mcp/` and will be documented separately.
+See [`mcp/README.md`](mcp/README.md) for MCP server details.
 
 ### Scheduling with Cron
 

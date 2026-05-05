@@ -23,6 +23,22 @@ go test ./...
 # Run a specific test
 go test -run TestParseNextCollectionTime ./pkg/scraper/
 
+# Build the API server
+go build -o bin-notifier-api ./cmd/api
+
+# Run the API server (set BN_API_READ_TOKEN/BN_API_WRITE_TOKEN to anything for local dev)
+BN_API_CONFIG_FILE=config.yaml \
+BN_API_DB_PATH=/tmp/cache.db \
+BN_API_READ_TOKEN=dev-read \
+BN_API_WRITE_TOKEN=dev-write \
+go run ./cmd/api
+
+# Build the Python MCP server (uv-managed)
+cd mcp && uv sync
+
+# Run the Python MCP server (stdio)
+cd mcp && BN_API_BASE_URL=http://localhost:8080 BN_API_TOKEN=dev-read uv run bin-notifier-mcp
+
 # Build Docker image
 docker build -t bin-notifier .
 
@@ -55,6 +71,16 @@ docker run --rm \
 
 CLI flags take precedence over environment variables.
 
+**API server (`cmd/api`):**
+- `BN_API_CONFIG_FILE` - YAML config path (or use -c)
+- `BN_API_DB_PATH` - SQLite file path (default /var/lib/bin-notifier/cache.db)
+- `BN_API_LISTEN_ADDR` - listen address (default :8080)
+- `BN_API_READ_TOKEN` / `BN_API_WRITE_TOKEN` - bearer tokens (both required)
+
+**Notifier → API push (optional):**
+- `BN_API_BASE_URL` - if set, the notifier PUTs scraped data here after each scrape
+- `BN_API_WRITE_TOKEN` - bearer token for the API's write endpoint
+
 ## Architecture
 
 This is a Go application that scrapes bin collection schedules from council websites and sends SMS notifications via Twilio when collections are due tomorrow. It supports multiple locations with pluggable council-specific scrapers.
@@ -62,10 +88,13 @@ This is a Go application that scrapes bin collection schedules from council webs
 ### Project Structure
 
 ```
+cmd/api/             - bin-notifier-api: HTTP server fronting the SQLite cache
 cmd/notifier/
   main.go          - Entry point + Notifier struct (orchestrates the workflow)
   main_test.go     - Tests using mock scrapers and SMS client
 
+pkg/api/             - HTTP handlers, server bootstrap, auth middleware
+pkg/apiclient/       - Go HTTP client used by the notifier to push to the API
 pkg/config/
   config.go        - Flags struct + ParseFlags() for CLI flags (-c, -x, -d)
                      Config/Location structs + LoadConfig() / LoadConfigForMCP() for YAML parsing
@@ -97,6 +126,11 @@ pkg/dateutil/
 pkg/regexp/
   regexp.go        - FindNamedMatches() helper for named capture groups
   regexp_test.go
+
+pkg/store/           - SQLite-backed cache (modernc.org/sqlite, pure Go)
+
+mcp/                 - Python/uv FastMCP server (consumes the API)
+deploy/helm/bin-notifier/  - Helm chart (API Deployment + notifier CronJob)
 ```
 
 ### Application Flow
@@ -130,6 +164,7 @@ pkg/regexp/
 
 - `chromedp` - Headless Chrome automation for web scraping
 - `twilio-go` - Twilio SDK for SMS
+- `modernc.org/sqlite` - pure-Go SQLite for the API cache
 - `yaml.v3` - YAML config file parsing
 - `testify` - Test assertions
 
