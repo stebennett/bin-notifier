@@ -1,14 +1,17 @@
 from __future__ import annotations
 
 import os
-from datetime import date
+from datetime import date, datetime
 from typing import Any
+from zoneinfo import ZoneInfo
 
 from mcp.server.fastmcp import FastMCP
 
-from .client import BinNotifierClient, NotFound, NoData
+from .client import BinNotifierClient, NoData, NoMatch, UnknownLocation
 
 mcp = FastMCP("bin-notifier")
+
+_LONDON = ZoneInfo("Europe/London")
 
 
 def _make_client() -> BinNotifierClient:
@@ -33,7 +36,33 @@ async def _resolve_location(client: BinNotifierClient, label: str | None) -> str
 
 
 def _days_until(target: str) -> int:
-    return (date.fromisoformat(target) - date.today()).days
+    today = datetime.now(_LONDON).date()
+    return (date.fromisoformat(target) - today).days
+
+
+async def _call_and_annotate(coro: Any, label: str, bin_type: str | None = None) -> dict[str, Any]:
+    """Await a get_next_collection call and normalise its result.
+
+    Shapes returned to MCP consumers:
+      - {"error": ...}                      -> bad input or unavailable cache
+      - {"status": "none_scheduled", ...}   -> valid query, nothing upcoming
+      - the API payload + "days_until"      -> a hit
+    """
+    try:
+        resp = await coro
+    except UnknownLocation:
+        return {"error": f"unknown location: {label}"}
+    except NoData:
+        return {"error": f"no data cached yet for {label}"}
+    except NoMatch:
+        type_phrase = f" {bin_type}" if bin_type else ""
+        return {
+            "status": "none_scheduled",
+            "location": label,
+            "message": f"no upcoming{type_phrase} collection found for {label}",
+        }
+    resp["days_until"] = _days_until(resp["date"])
+    return resp
 
 
 @mcp.tool(name="list_locations", description="List configured bin-notifier locations.")
@@ -50,14 +79,7 @@ async def get_next_collection_tool(location: str | None = None) -> dict[str, Any
     label = await _resolve_location(client, location)
     if isinstance(label, dict):
         return label
-    try:
-        resp = await client.get_next_collection(label)
-    except NoData:
-        return {"error": f"no data cached yet for {label}"}
-    except NotFound:
-        return {"error": f"no upcoming collection found for {label}"}
-    resp["days_until"] = _days_until(resp["date"])
-    return resp
+    return await _call_and_annotate(client.get_next_collection(label), label)
 
 
 @mcp.tool(
@@ -69,14 +91,9 @@ async def get_next_collection_of_type_tool(bin_type: str, location: str | None =
     label = await _resolve_location(client, location)
     if isinstance(label, dict):
         return label
-    try:
-        resp = await client.get_next_collection(label, bin_type=bin_type)
-    except NoData:
-        return {"error": f"no data cached yet for {label}"}
-    except NotFound:
-        return {"message": f"no upcoming {bin_type} collection found for {label}"}
-    resp["days_until"] = _days_until(resp["date"])
-    return resp
+    return await _call_and_annotate(
+        client.get_next_collection(label, bin_type=bin_type), label, bin_type
+    )
 
 
 def run() -> None:

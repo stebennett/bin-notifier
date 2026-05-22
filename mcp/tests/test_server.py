@@ -15,9 +15,15 @@ class FakeClient:
         return self.locations
 
     async def get_next_collection(self, label, *, bin_type=None, from_date=None):
+        if label == "Nowhere":
+            from bin_notifier_mcp.client import UnknownLocation
+            raise UnknownLocation("no such location: Nowhere")
+        if label == "Empty":
+            from bin_notifier_mcp.client import NoMatch
+            raise NoMatch("no matching collection")
         if bin_type == "Garden":
-            from bin_notifier_mcp.client import NotFound
-            raise NotFound("no matching collection")
+            from bin_notifier_mcp.client import NoMatch
+            raise NoMatch("no matching collection")
         return self.next_response
 
 
@@ -49,11 +55,32 @@ async def test_get_next_collection_uses_default_location(env, monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_get_next_collection_of_type_returns_message_when_missing(env, monkeypatch):
+async def test_get_next_collection_of_type_none_scheduled(env, monkeypatch):
     fake = FakeClient()
     monkeypatch.setattr(server, "_make_client", lambda: fake)
     out = await server.get_next_collection_of_type_tool("Garden")
-    assert "no" in out["message"].lower()
+    assert out["status"] == "none_scheduled"
+    assert "Garden" in out["message"]
+    assert "error" not in out
+
+
+@pytest.mark.asyncio
+async def test_unknown_location_returns_error(env, monkeypatch):
+    fake = FakeClient()
+    monkeypatch.setattr(server, "_make_client", lambda: fake)
+    out = await server.get_next_collection_tool(location="Nowhere")
+    assert "error" in out
+    assert "Nowhere" in out["error"]
+
+
+@pytest.mark.asyncio
+async def test_get_next_collection_none_scheduled(env, monkeypatch):
+    fake = FakeClient()
+    monkeypatch.setattr(server, "_make_client", lambda: fake)
+    out = await server.get_next_collection_tool(location="Empty")
+    assert out["status"] == "none_scheduled"
+    assert out["location"] == "Empty"
+    assert "error" not in out
 
 
 @pytest.mark.asyncio
