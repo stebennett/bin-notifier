@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stebennett/bin-notifier/pkg/dateutil"
 	"github.com/stebennett/bin-notifier/pkg/store"
 	"github.com/stretchr/testify/require"
 )
@@ -219,4 +220,29 @@ func TestPutCollectionsBadDateReturns400(t *testing.T) {
 	srv.Handler().ServeHTTP(rr, putReq("/v1/locations/Home/collections", "write-token",
 		`{"scraped_at":"2026-05-05T18:00:00Z","collections":[{"bin_type":"X","date":"not-a-date"}]}`))
 	require.Equal(t, http.StatusBadRequest, rr.Code)
+}
+
+func TestListCollectionsDefaultFromUsesLondonToday(t *testing.T) {
+	srv := newTestServer(t)
+	today := dateutil.TodayString()
+	require.NoError(t, srv.opts.Store.ReplaceCollections("Home",
+		time.Date(2026, 5, 5, 18, 0, 0, 0, time.UTC),
+		[]store.Collection{{BinType: "General Waste", Date: today}}))
+
+	// No `from` param: the handler must default to the Europe/London date.
+	rrDefault := httptest.NewRecorder()
+	srv.Handler().ServeHTTP(rrDefault, authedReq("GET", "/v1/locations/Home/collections", "read-token"))
+	require.Equal(t, http.StatusOK, rrDefault.Code)
+
+	var got struct {
+		Collections []store.Collection `json:"collections"`
+	}
+	require.NoError(t, json.NewDecoder(rrDefault.Body).Decode(&got))
+	require.Len(t, got.Collections, 1)
+	require.Equal(t, today, got.Collections[0].Date)
+
+	// The defaulted response must equal an explicit from=<london today> request.
+	rrExplicit := httptest.NewRecorder()
+	srv.Handler().ServeHTTP(rrExplicit, authedReq("GET", "/v1/locations/Home/collections?from="+today, "read-token"))
+	require.Equal(t, http.StatusOK, rrExplicit.Code)
 }

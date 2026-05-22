@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/stebennett/bin-notifier/pkg/dateutil"
 	"github.com/stebennett/bin-notifier/pkg/store"
 )
 
@@ -38,12 +39,12 @@ type collectionsResponse struct {
 	Collections []store.Collection `json:"collections"`
 }
 
-// parseFromAndTypes returns the `from` query param (defaulting to today UTC)
-// and the repeatable `type` filter values.
+// parseFromAndTypes returns the `from` query param (defaulting to today in
+// Europe/London) and the repeatable `type` filter values.
 func parseFromAndTypes(r *http.Request) (string, []string) {
 	from := r.URL.Query().Get("from")
 	if from == "" {
-		from = time.Now().UTC().Format("2006-01-02")
+		from = dateutil.TodayString()
 	}
 	return from, r.URL.Query()["type"]
 }
@@ -87,6 +88,7 @@ func (s *Server) knownLocation(label string) bool {
 	}
 	return false
 }
+
 type nextResponse struct {
 	Location  string   `json:"location"`
 	ScrapedAt string   `json:"scraped_at"`
@@ -124,6 +126,7 @@ func (s *Server) handleNextCollection(w http.ResponseWriter, r *http.Request) {
 		BinTypes:  binTypes,
 	})
 }
+
 type putRequest struct {
 	ScrapedAt   string             `json:"scraped_at"`
 	Collections []store.Collection `json:"collections"`
