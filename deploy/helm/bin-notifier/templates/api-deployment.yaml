@@ -1,3 +1,6 @@
+{{- if gt (int .Values.api.replicaCount) 1 }}
+{{- fail "api.replicaCount must be 1: the API uses a single-writer SQLite database on one ReadWriteOnce PVC" }}
+{{- end }}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
