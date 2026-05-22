@@ -3,6 +3,7 @@ package dateutil
 import (
 	"fmt"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -37,6 +38,25 @@ func IsOnWeek(referenceDate, targetDate time.Time, everyNWeeks int) bool {
 	weeks := days / 7
 	return weeks%everyNWeeks == 0
 }
+
+// london is loaded lazily so the lookup happens at first use, after the
+// `_ "time/tzdata"` blank import (added to the binary entry points) has registered
+// the embedded zone database. UTC is a defensive fallback that is unreachable once
+// that embedded database is present; note Europe/London observes BST (+1) in summer,
+// so UTC is not equivalent year-round.
+var london = sync.OnceValue(func() *time.Location {
+	loc, err := time.LoadLocation("Europe/London")
+	if err != nil {
+		return time.UTC
+	}
+	return loc
+})
+
+// London returns the Europe/London location used for all calendar-date logic.
+func London() *time.Location { return london() }
+
+// TodayString returns the current calendar date in Europe/London as YYYY-MM-DD.
+func TodayString() string { return time.Now().In(London()).Format("2006-01-02") }
 
 func ParseWeekday(s string) (time.Weekday, error) {
 	days := map[string]time.Weekday{
