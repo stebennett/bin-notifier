@@ -12,6 +12,8 @@ import (
 	"syscall"
 	"time"
 
+	_ "time/tzdata" // embed the IANA tz database (distroless/static has no system zoneinfo)
+
 	"github.com/stebennett/bin-notifier/pkg/api"
 	"github.com/stebennett/bin-notifier/pkg/config"
 	"github.com/stebennett/bin-notifier/pkg/store"

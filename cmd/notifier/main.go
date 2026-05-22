@@ -7,6 +7,8 @@ import (
 	"strings"
 	"time"
 
+	_ "time/tzdata" // embed the IANA tz database for consistent Europe/London resolution
+
 	"github.com/stebennett/bin-notifier/pkg/apiclient"
 	"github.com/stebennett/bin-notifier/pkg/clients"
 	"github.com/stebennett/bin-notifier/pkg/config"
