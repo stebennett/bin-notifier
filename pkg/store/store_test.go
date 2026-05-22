@@ -182,3 +182,39 @@ func TestNextCollectionClearedLocationReturnsErrNoMatch(t *testing.T) {
 	_, _, _, err = s.NextCollection("Home", "2026-05-05", nil)
 	require.ErrorIs(t, err, ErrNoMatch)
 }
+
+func TestListCollectionsClearedLocationReturnsRealScrapedAt(t *testing.T) {
+	s, err := Open(":memory:")
+	require.NoError(t, err)
+	defer s.Close()
+
+	scrapedAt := time.Date(2026, 5, 5, 18, 0, 0, 0, time.UTC)
+	require.NoError(t, s.ReplaceCollections("Home", scrapedAt, []Collection{
+		{BinType: "General Waste", Date: "2026-05-07"},
+	}))
+	// Empty push (scrape returned nothing) updates the timestamp but clears rows.
+	cleared := time.Date(2026, 5, 6, 18, 0, 0, 0, time.UTC)
+	require.NoError(t, s.ReplaceCollections("Home", cleared, nil))
+
+	got, gotScrapedAt, err := s.ListCollections("Home", "2026-05-05", nil)
+	require.NoError(t, err)
+	require.Empty(t, got)
+	require.Equal(t, cleared.UTC(), gotScrapedAt.UTC(), "scraped_at must be the real time, not the zero time")
+}
+
+func TestListCollectionsNoMatchingRowsStillReturnsScrapedAt(t *testing.T) {
+	s, err := Open(":memory:")
+	require.NoError(t, err)
+	defer s.Close()
+
+	scrapedAt := time.Date(2026, 5, 5, 18, 0, 0, 0, time.UTC)
+	require.NoError(t, s.ReplaceCollections("Home", scrapedAt, []Collection{
+		{BinType: "General Waste", Date: "2026-05-07"},
+	}))
+
+	// `from` in the future -> zero rows match, but the location is still seen.
+	got, gotScrapedAt, err := s.ListCollections("Home", "2099-01-01", nil)
+	require.NoError(t, err)
+	require.Empty(t, got)
+	require.Equal(t, scrapedAt.UTC(), gotScrapedAt.UTC())
+}

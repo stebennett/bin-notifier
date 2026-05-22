@@ -14,12 +14,12 @@ CREATE TABLE IF NOT EXISTS collections (
     location    TEXT NOT NULL,
     bin_type    TEXT NOT NULL,
     date        TEXT NOT NULL,
-    scraped_at  TEXT NOT NULL,
     PRIMARY KEY (location, bin_type, date)
 );
 CREATE INDEX IF NOT EXISTS idx_collections_location_date ON collections(location, date);
 CREATE TABLE IF NOT EXISTS seen_locations (
-    location TEXT PRIMARY KEY
+    location   TEXT PRIMARY KEY,
+    scraped_at TEXT NOT NULL
 );
 `
 
@@ -69,21 +69,24 @@ func (s *Store) ReplaceCollections(location string, scrapedAt time.Time, items [
 	}
 	defer tx.Rollback()
 
-	if _, err := tx.Exec(`INSERT OR IGNORE INTO seen_locations(location) VALUES (?)`, location); err != nil {
+	scrapedStr := scrapedAt.UTC().Format(time.RFC3339)
+	if _, err := tx.Exec(
+		`INSERT INTO seen_locations(location, scraped_at) VALUES (?, ?)
+		 ON CONFLICT(location) DO UPDATE SET scraped_at = excluded.scraped_at`,
+		location, scrapedStr,
+	); err != nil {
 		return err
 	}
 	if _, err := tx.Exec(`DELETE FROM collections WHERE location = ?`, location); err != nil {
 		return err
 	}
-	stmt, err := tx.Prepare(`INSERT INTO collections (location, bin_type, date, scraped_at) VALUES (?, ?, ?, ?)`)
+	stmt, err := tx.Prepare(`INSERT INTO collections (location, bin_type, date) VALUES (?, ?, ?)`)
 	if err != nil {
 		return err
 	}
 	defer stmt.Close()
-
-	scrapedStr := scrapedAt.UTC().Format(time.RFC3339)
 	for _, c := range items {
-		if _, err := stmt.Exec(location, c.BinType, c.Date, scrapedStr); err != nil {
+		if _, err := stmt.Exec(location, c.BinType, c.Date); err != nil {
 			return err
 		}
 	}
@@ -94,16 +97,21 @@ func (s *Store) ReplaceCollections(location string, scrapedAt time.Time, items [
 // Rows are returned ordered by date ASC, bin_type ASC — NextCollection depends on this contract.
 // Returns ErrNoData if the location has never been written to (no ReplaceCollections call yet).
 func (s *Store) ListCollections(location string, from string, types []string) ([]Collection, time.Time, error) {
-	var seen bool
-	if err := s.db.QueryRow(`SELECT EXISTS(SELECT 1 FROM seen_locations WHERE location = ?)`, location).Scan(&seen); err != nil {
+	var scrapedStr string
+	err := s.db.QueryRow(`SELECT scraped_at FROM seen_locations WHERE location = ?`, location).Scan(&scrapedStr)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, time.Time{}, ErrNoData
+	}
+	if err != nil {
 		return nil, time.Time{}, err
 	}
-	if !seen {
-		return nil, time.Time{}, ErrNoData
+	scrapedAt, err := time.Parse(time.RFC3339, scrapedStr)
+	if err != nil {
+		return nil, time.Time{}, fmt.Errorf("parse scraped_at for %q: %w", location, err)
 	}
 
 	args := []any{location, from}
-	q := `SELECT bin_type, date, scraped_at FROM collections WHERE location = ? AND date >= ?`
+	q := `SELECT bin_type, date FROM collections WHERE location = ? AND date >= ?`
 	if len(types) > 0 {
 		q += ` AND bin_type IN (?` + repeatPlaceholders(len(types)-1) + `)`
 		for _, t := range types {
@@ -119,26 +127,17 @@ func (s *Store) ListCollections(location string, from string, types []string) ([
 	defer rows.Close()
 
 	var out []Collection
-	var latestScraped time.Time
 	for rows.Next() {
 		var c Collection
-		var scrapedStr string
-		if err := rows.Scan(&c.BinType, &c.Date, &scrapedStr); err != nil {
+		if err := rows.Scan(&c.BinType, &c.Date); err != nil {
 			return nil, time.Time{}, err
-		}
-		ts, err := time.Parse(time.RFC3339, scrapedStr)
-		if err != nil {
-			return nil, time.Time{}, err
-		}
-		if ts.After(latestScraped) {
-			latestScraped = ts
 		}
 		out = append(out, c)
 	}
 	if err := rows.Err(); err != nil {
 		return nil, time.Time{}, err
 	}
-	return out, latestScraped, nil
+	return out, scrapedAt, nil
 }
 
 // ErrNoMatch is returned by NextCollection when the location is known but no
