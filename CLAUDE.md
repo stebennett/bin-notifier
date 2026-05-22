@@ -23,17 +23,24 @@ go test ./...
 # Run a specific test
 go test -run TestParseNextCollectionTime ./pkg/scraper/
 
-# Build the MCP server
-go build -o bin-notifier-mcp ./cmd/server
+# Build the API server
+go build -o bin-notifier-api ./cmd/api
 
-# Run the MCP server (stdio transport)
-./bin-notifier-mcp -c config.yaml
+# Run the API server (set BN_API_READ_TOKEN/BN_API_WRITE_TOKEN to anything for local dev)
+BN_API_CONFIG_FILE=config.yaml \
+BN_API_DB_PATH=/tmp/cache.db \
+BN_API_READ_TOKEN=dev-read \
+BN_API_WRITE_TOKEN=dev-write \
+go run ./cmd/api
+
+# Build the Python MCP server (uv-managed)
+cd mcp && uv sync
+
+# Run the Python MCP server (stdio)
+cd mcp && BN_API_BASE_URL=http://localhost:8080 BN_API_TOKEN=dev-read uv run bin-notifier-mcp
 
 # Build Docker image
 docker build -t bin-notifier .
-
-# Build MCP server Docker image
-docker build -f Dockerfile.mcp -t bin-notifier-mcp .
 
 # Run with Docker (dry-run mode)
 docker run --rm \
@@ -41,11 +48,6 @@ docker run --rm \
   -e TWILIO_AUTH_TOKEN=test \
   -v /path/to/config.yaml:/config.yaml:ro \
   bin-notifier -c /config.yaml -x
-
-# Run MCP server with Docker (stdio transport, use -i for stdin)
-docker run -i --rm \
-  -v /path/to/config.yaml:/config.yaml:ro \
-  bin-notifier-mcp -c /config.yaml
 ```
 
 ## Prerequisites
@@ -69,21 +71,32 @@ docker run -i --rm \
 
 CLI flags take precedence over environment variables.
 
+**API server (`cmd/api`):**
+- `BN_API_CONFIG_FILE` - YAML config path (or use -c)
+- `BN_API_DB_PATH` - SQLite file path (default /var/lib/bin-notifier/cache.db)
+- `BN_API_LISTEN_ADDR` - listen address (default :8080)
+- `BN_API_READ_TOKEN` / `BN_API_WRITE_TOKEN` - bearer tokens (both required)
+
+**Notifier → API push (optional):**
+- `BN_API_BASE_URL` - if set, the notifier PUTs scraped data here after each scrape
+- `BN_API_WRITE_TOKEN` - bearer token for the API's write endpoint
+
 ## Architecture
 
 This is a Go application that scrapes bin collection schedules from council websites and sends SMS notifications via Twilio when collections are due tomorrow. It supports multiple locations with pluggable council-specific scrapers.
 
+All calendar-date logic (notifier collection dates, the API's default `from`, and the MCP's `days_until`) is pinned to **Europe/London**. The Go binaries embed the IANA timezone database via `time/tzdata`; the Python MCP depends on `tzdata`.
+
 ### Project Structure
 
 ```
+cmd/api/             - bin-notifier-api: HTTP server fronting the SQLite cache
 cmd/notifier/
   main.go          - Entry point + Notifier struct (orchestrates the workflow)
   main_test.go     - Tests using mock scrapers and SMS client
 
-cmd/server/
-  main.go          - MCP server entry point: loads config, registers tools, runs stdio transport
-  main_test.go     - Tool handler tests with mock scrapers
-
+pkg/api/             - HTTP handlers, server bootstrap, auth middleware
+pkg/apiclient/       - Go HTTP client used by the notifier to push to the API
 pkg/config/
   config.go        - Flags struct + ParseFlags() for CLI flags (-c, -x, -d)
                      Config/Location structs + LoadConfig() / LoadConfigForMCP() for YAML parsing
@@ -115,6 +128,11 @@ pkg/dateutil/
 pkg/regexp/
   regexp.go        - FindNamedMatches() helper for named capture groups
   regexp_test.go
+
+pkg/store/           - SQLite-backed cache (modernc.org/sqlite, pure Go)
+
+mcp/                 - Python/uv FastMCP server (consumes the API)
+deploy/helm/bin-notifier/  - Helm chart (API Deployment + notifier CronJob)
 ```
 
 ### Application Flow
@@ -144,25 +162,15 @@ pkg/regexp/
 2. Add a case to the `NewScraper()` switch in `pkg/scraper/scraper.go`
 3. No changes needed to `cmd/notifier/main.go`
 
-### MCP Server (cmd/server)
-
-The MCP server exposes bin collection data via the Model Context Protocol over stdio. It provides three tools:
-
-- `get_collections` — Project collections from config schedule rules for a date/range (fast, no Chrome)
-- `get_next_collection` — Scrape council website for confirmed next collection dates (cached 6h)
-- `list_locations` — List all configured locations and their schedules
-
-Config is loaded via `LoadConfigForMCP()` which skips phone number validation since the MCP server doesn't send SMS.
-
 ## Key Dependencies
 
 - `chromedp` - Headless Chrome automation for web scraping
 - `twilio-go` - Twilio SDK for SMS
-- `mcp-go` - Go MCP SDK for the MCP server
+- `modernc.org/sqlite` - pure-Go SQLite for the API cache
 - `yaml.v3` - YAML config file parsing
 - `testify` - Test assertions
 
 ## GitHub Actions
 
-- **CI** (`.github/workflows/ci.yml`) - Runs on pull requests; builds both notifier and MCP server, runs tests
-- **Release** (`.github/workflows/release.yml`) - Triggers on `vX.Y.Z` tags; builds binaries for both notifier and MCP server (linux/amd64, linux/arm64, darwin/arm64), creates a GitHub release with zip artifacts, and pushes Docker images for both to ghcr.io
+- **CI** (`.github/workflows/ci.yml`) - Runs on pull requests; builds the notifier and the API server, runs Go tests, runs Python MCP pytest, and lints/templates the Helm chart
+- **Release** (`.github/workflows/release.yml`) - Triggers on `vX.Y.Z` tags; builds notifier and API binaries (linux/amd64, linux/arm64, darwin/arm64), creates a GitHub release with zip artifacts, and pushes three Docker images to ghcr.io: `bin-notifier`, `bin-notifier-api`, `bin-notifier-mcp`

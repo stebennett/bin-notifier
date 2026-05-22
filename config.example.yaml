@@ -1,5 +1,5 @@
-# Example config for testing the MCP server
-# No phone numbers needed for MCP server (LoadConfigForMCP skips that validation)
+# Example config without phone numbers (used by the API server, which does not send SMS).
+# The notifier requires from_number / to_number — see the full example further below.
 
 locations:
   - label: Home

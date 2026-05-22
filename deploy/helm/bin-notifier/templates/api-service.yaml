@@ -1,0 +1,16 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "bin-notifier.fullname" . }}-api
+  labels: {{- include "bin-notifier.labels" . | nindent 4 }}
+spec:
+  type: ClusterIP
+  ports:
+    - port: {{ .Values.api.service.port }}
+      targetPort: http
+      protocol: TCP
+      name: http
+  selector:
+    app.kubernetes.io/name: bin-notifier
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/component: api

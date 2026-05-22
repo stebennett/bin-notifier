@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestAsTime(t *testing.T) {
@@ -290,4 +291,17 @@ func TestParseWeekday(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestLondonLocationIsEuropeLondon(t *testing.T) {
+	loc := London()
+	require.NotNil(t, loc)
+	require.Equal(t, "Europe/London", loc.String())
+}
+
+func TestTodayStringMatchesLondonCalendarDate(t *testing.T) {
+	// Smoke test: verifies the function is callable; timezone correctness is
+	// covered by TestLondonLocationIsEuropeLondon.
+	want := time.Now().In(London()).Format("2006-01-02")
+	require.Equal(t, want, TodayString())
 }

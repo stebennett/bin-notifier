@@ -7,6 +7,9 @@ import (
 	"strings"
 	"time"
 
+	_ "time/tzdata" // embed the IANA tz database for consistent Europe/London resolution
+
+	"github.com/stebennett/bin-notifier/pkg/apiclient"
 	"github.com/stebennett/bin-notifier/pkg/clients"
 	"github.com/stebennett/bin-notifier/pkg/config"
 	"github.com/stebennett/bin-notifier/pkg/dateutil"
@@ -26,10 +29,21 @@ type SMSClient interface {
 	SendSms(from string, to string, body string, dryRun bool) error
 }
 
+// APIClient pushes scraped collections to the bin-notifier API.
+type APIClient interface {
+	PushCollections(label string, scrapedAt time.Time, items []apiclient.Collection) error
+}
+
+// noopAPIClient is used when the API is not configured (no BN_API_BASE_URL).
+type noopAPIClient struct{}
+
+func (noopAPIClient) PushCollections(string, time.Time, []apiclient.Collection) error { return nil }
+
 // Notifier orchestrates the bin collection notification workflow.
 type Notifier struct {
 	ScraperFactory ScraperFactory
 	SMSClient      SMSClient
+	APIClient      APIClient
 	Clock          func() time.Time
 }
 
@@ -77,6 +91,19 @@ func (n *Notifier) processLocation(cfg config.Config, loc config.Location, today
 	if err != nil {
 		result.Error = fmt.Errorf("[%s] scrape error: %w", loc.Label, err)
 		return result
+	}
+
+	items := make([]apiclient.Collection, 0, len(binTimes))
+	for _, bt := range binTimes {
+		items = append(items, apiclient.Collection{
+			BinType: bt.Type,
+			Date:    bt.CollectionTime.Format("2006-01-02"),
+		})
+	}
+	if !cfg.DryRun {
+		if err := n.APIClient.PushCollections(loc.Label, n.Clock(), items); err != nil {
+			log.Printf("[%s] WARN: API push failed (continuing to SMS): %v", loc.Label, err)
+		}
 	}
 
 	tomorrow := today.AddDate(0, 0, 1)
@@ -161,11 +188,17 @@ func main() {
 	cfg.DryRun = flags.DryRun
 	cfg.TodayDate = flags.TodayDate
 
+	var apiCli APIClient = noopAPIClient{}
+	if base := os.Getenv("BN_API_BASE_URL"); base != "" {
+		apiCli = apiclient.New(base, os.Getenv("BN_API_WRITE_TOKEN"))
+	}
+
 	notifier := &Notifier{
 		ScraperFactory: func(name string) (BinScraper, error) {
 			return scraper.NewScraper(name)
 		},
 		SMSClient: &twilioSMSClientAdapter{client: clients.NewTwilioClient()},
+		APIClient: apiCli,
 		Clock:     time.Now,
 	}
 

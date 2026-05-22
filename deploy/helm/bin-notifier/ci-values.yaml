@@ -1,0 +1,15 @@
+# Minimal values used by CI to render the chart for lint/template checks.
+notifier:
+  twilio:
+    existingSecret: fake-twilio
+config: |
+  from_number: "+1"
+  to_number: "+2"
+  locations:
+    - label: Home
+      scraper: bracknell
+      postcode: "P"
+      address_code: "A"
+      collection_days:
+        - day: monday
+          types: [General Waste]

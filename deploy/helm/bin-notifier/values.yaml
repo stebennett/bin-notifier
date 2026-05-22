@@ -1,0 +1,46 @@
+image:
+  api:
+    repository: ghcr.io/stebennett/bin-notifier-api
+    tag: ""           # defaults to .Chart.AppVersion
+    pullPolicy: IfNotPresent
+  notifier:
+    repository: ghcr.io/stebennett/bin-notifier
+    tag: ""
+    pullPolicy: IfNotPresent
+
+api:
+  replicaCount: 1     # SQLite single-writer; the only safe value.
+  service:
+    port: 80
+  ingress:
+    enabled: false
+    className: ""
+    host: ""
+    tls:
+      enabled: false
+      secretName: ""
+    annotations: {}
+  persistence:
+    size: 1Gi
+    storageClass: local-path
+  resources: {}
+
+notifier:
+  schedule: "0 18 * * *"
+  dryRun: false
+  resources: {}
+  # Twilio creds: chart never templates these. Reference an existing Secret.
+  twilio:
+    existingSecret: ""    # required: must define TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN
+
+# Configuration source: set `config:` to inline YAML or `existingConfigSecret:` to reuse one.
+config: ""              # YAML string (config.yaml contents)
+existingConfigSecret: ""
+
+# Tokens. If both unset and existingTokensSecret is empty, the chart auto-generates them on install.
+# (Helm cannot read existing values during upgrade — set explicit tokens or use existingTokensSecret
+# to avoid losing the auto-generated values across `helm upgrade --reset-values`.)
+tokens:
+  readToken: ""
+  writeToken: ""
+existingTokensSecret: ""    # must define keys: read-token, write-token
