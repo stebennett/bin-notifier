@@ -85,6 +85,8 @@ CLI flags take precedence over environment variables.
 
 This is a Go application that scrapes bin collection schedules from council websites and sends SMS notifications via Twilio when collections are due tomorrow. It supports multiple locations with pluggable council-specific scrapers.
 
+All calendar-date logic (notifier collection dates, the API's default `from`, and the MCP's `days_until`) is pinned to **Europe/London**. The Go binaries embed the IANA timezone database via `time/tzdata`; the Python MCP depends on `tzdata`.
+
 ### Project Structure
 
 ```
