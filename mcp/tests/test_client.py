@@ -2,7 +2,7 @@ import pytest
 import httpx
 import respx
 
-from bin_notifier_mcp.client import BinNotifierClient, ApiError, NotFound, NoData
+from bin_notifier_mcp.client import BinNotifierClient, ApiError, NotFound, NoData, UnknownLocation, NoMatch
 
 
 @pytest.mark.asyncio
@@ -34,10 +34,10 @@ async def test_get_next_collection_passes_type_filter_and_token():
 
 
 @pytest.mark.asyncio
-async def test_404_no_match_raises_not_found():
+async def test_404_without_code_raises_not_found():
     async with respx.mock(base_url="https://api.example") as mock:
         mock.get("/v1/locations/Home/collections/next").mock(
-            return_value=httpx.Response(404, json={"error": "no matching collection", "code": "no_match"})
+            return_value=httpx.Response(404, json={"error": "not found"})
         )
         client = BinNotifierClient("https://api.example", "tok")
         with pytest.raises(NotFound):
@@ -62,3 +62,25 @@ async def test_other_errors_raise_api_error():
         client = BinNotifierClient("https://api.example", "tok")
         with pytest.raises(ApiError):
             await client.list_locations()
+
+
+@pytest.mark.asyncio
+async def test_404_unknown_location_raises_unknown_location():
+    async with respx.mock(base_url="https://api.example") as mock:
+        mock.get("/v1/locations/Hom/collections/next").mock(
+            return_value=httpx.Response(404, json={"error": "no such location: Hom", "code": "unknown_location"})
+        )
+        client = BinNotifierClient("https://api.example", "tok")
+        with pytest.raises(UnknownLocation):
+            await client.get_next_collection("Hom")
+
+
+@pytest.mark.asyncio
+async def test_404_no_match_raises_no_match():
+    async with respx.mock(base_url="https://api.example") as mock:
+        mock.get("/v1/locations/Home/collections/next").mock(
+            return_value=httpx.Response(404, json={"error": "no matching collection", "code": "no_match"})
+        )
+        client = BinNotifierClient("https://api.example", "tok")
+        with pytest.raises(NoMatch):
+            await client.get_next_collection("Home")

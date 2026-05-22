@@ -14,6 +14,14 @@ class NotFound(ApiError):
     """404 from the API (unknown location or no matching collection)."""
 
 
+class UnknownLocation(NotFound):
+    """404 with code=unknown_location (the label is not configured)."""
+
+
+class NoMatch(NotFound):
+    """404 with code=no_match (location known, but no matching collection)."""
+
+
 class NoData(ApiError):
     """503 from the API (location known but no cache yet)."""
 
@@ -41,7 +49,18 @@ class BinNotifierClient:
         if resp.status_code == 401:
             raise Unauthorized("unauthorized")
         if resp.status_code == 404:
-            raise NotFound(_msg(resp))
+            body: dict[str, Any] = {}
+            try:
+                body = resp.json()
+            except ValueError:
+                pass
+            msg = str(body.get("error") or resp.text)
+            code = str(body.get("code") or "")
+            if code == "unknown_location":
+                raise UnknownLocation(msg)
+            if code == "no_match":
+                raise NoMatch(msg)
+            raise NotFound(msg)
         if resp.status_code == 503:
             raise NoData(_msg(resp))
         if resp.status_code >= 400:
