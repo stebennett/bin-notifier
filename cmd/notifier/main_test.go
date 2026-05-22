@@ -152,7 +152,7 @@ func TestNotifier_MessagePrefixedWithLabel(t *testing.T) {
 }
 
 func TestNotifier_SendsSmsOnRegularDayNoCollections(t *testing.T) {
-	today := time.Date(2024, 1, 15, 10, 0, 0, 0, time.UTC)  // Monday
+	today := time.Date(2024, 1, 15, 10, 0, 0, 0, time.UTC)   // Monday
 	nextWeek := time.Date(2024, 1, 22, 0, 0, 0, 0, time.UTC) // Monday +1 week
 
 	mockScr := &mockScraper{
@@ -181,7 +181,7 @@ func TestNotifier_SendsSmsOnRegularDayNoCollections(t *testing.T) {
 }
 
 func TestNotifier_NoSmsWhenNoCollectionsAndNotRegularDay(t *testing.T) {
-	today := time.Date(2024, 1, 15, 10, 0, 0, 0, time.UTC)  // Monday
+	today := time.Date(2024, 1, 15, 10, 0, 0, 0, time.UTC)   // Monday
 	nextWeek := time.Date(2024, 1, 22, 0, 0, 0, 0, time.UTC) // Monday +1 week
 
 	mockScr := &mockScraper{
@@ -518,7 +518,7 @@ func TestNotifier_FortnightlyOffWeekNoMessage(t *testing.T) {
 }
 
 func TestNotifier_MultipleCollectionDaysWarnings(t *testing.T) {
-	today := time.Date(2024, 1, 15, 10, 0, 0, 0, time.UTC)  // Monday
+	today := time.Date(2024, 1, 15, 10, 0, 0, 0, time.UTC)   // Monday
 	nextWeek := time.Date(2024, 1, 22, 0, 0, 0, 0, time.UTC) // Monday +1 week
 
 	mockScr := &mockScraper{
@@ -587,6 +587,35 @@ func TestNotifier_PushesScrapedDataBeforeSMS(t *testing.T) {
 	assert.Equal(t, "Home", mockAPI.calls[0].Label)
 	assert.Equal(t, []apiclient.Collection{{BinType: "General Waste", Date: "2024-01-16"}}, mockAPI.calls[0].Items)
 	assert.NotEmpty(t, mockSMS.calls, "SMS should still be sent")
+}
+
+func TestNotifierDryRunSkipsPush(t *testing.T) {
+	tomorrow := time.Date(2024, 1, 16, 0, 0, 0, 0, time.UTC) // Tuesday
+
+	mockScr := &mockScraper{
+		binTimes: []scraper.BinTime{
+			{Type: "General Waste", CollectionTime: tomorrow},
+		},
+	}
+	mockSMS := &mockSMSClient{}
+	mockAPI := &mockAPIClient{}
+
+	cfg := createTestConfig()
+	cfg.TodayDate = "2024-01-15"
+	cfg.DryRun = true
+
+	n := &Notifier{
+		ScraperFactory: newMockFactory(map[string]*mockScraper{"bracknell": mockScr}),
+		SMSClient:      mockSMS,
+		APIClient:      mockAPI,
+		Clock:          func() time.Time { return time.Date(2024, 1, 15, 12, 0, 0, 0, time.UTC) },
+	}
+	results := n.Run(cfg)
+
+	assert.Len(t, results, 1)
+	assert.NoError(t, results[0].Error)
+	assert.Empty(t, mockAPI.calls, "dry-run must not push to the API")
+	assert.NotEmpty(t, mockSMS.calls, "SMS should still be sent in dry-run mode")
 }
 
 func TestNotifier_PushFailureDoesNotBlockSMS(t *testing.T) {

@@ -100,8 +100,10 @@ func (n *Notifier) processLocation(cfg config.Config, loc config.Location, today
 			Date:    bt.CollectionTime.Format("2006-01-02"),
 		})
 	}
-	if err := n.APIClient.PushCollections(loc.Label, n.Clock(), items); err != nil {
-		log.Printf("[%s] WARN: API push failed (continuing to SMS): %v", loc.Label, err)
+	if !cfg.DryRun {
+		if err := n.APIClient.PushCollections(loc.Label, n.Clock(), items); err != nil {
+			log.Printf("[%s] WARN: API push failed (continuing to SMS): %v", loc.Label, err)
+		}
 	}
 
 	tomorrow := today.AddDate(0, 0, 1)
