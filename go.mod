@@ -4,7 +4,7 @@ go 1.26
 
 require (
 	github.com/chromedp/chromedp v0.15.1
-	github.com/mark3labs/mcp-go v0.54.0
+	github.com/mark3labs/mcp-go v0.54.1
 	gopkg.in/yaml.v3 v3.0.1
 )
 
