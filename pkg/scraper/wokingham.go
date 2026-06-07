@@ -86,7 +86,7 @@ func (s *WokinghamScraper) ScrapeBinTimes(postCode string, addressCode string) (
 	// Step 1: Navigate and accept cookies
 	err = chromedp.Run(taskCtx,
 		chromedp.Navigate("https://www.wokingham.gov.uk/rubbish-and-recycling/waste-collection/find-your-bin-collection-day"),
-		chromedp.WaitVisible(`#edit-postcode-search-csv`, chromedp.ByQuery),
+		chromedp.WaitVisible(`#edit-postcode-search`, chromedp.ByQuery),
 	)
 	if err != nil {
 		return []BinTime{}, err
@@ -101,7 +101,7 @@ func (s *WokinghamScraper) ScrapeBinTimes(postCode string, addressCode string) (
 	// Step 2: Enter postcode and submit
 	log.Printf("entering postcode: %s", postCode)
 	err = chromedp.Run(taskCtx,
-		chromedp.SetValue(`#edit-postcode-search-csv`, postCode, chromedp.ByQuery),
+		chromedp.SetValue(`#edit-postcode-search`, postCode, chromedp.ByQuery),
 		chromedp.Sleep(300*time.Millisecond),
 		chromedp.Click(`#edit-find-address`, chromedp.ByQuery),
 		chromedp.Sleep(3*time.Second),
@@ -113,10 +113,10 @@ func (s *WokinghamScraper) ScrapeBinTimes(postCode string, addressCode string) (
 	// Step 3: Select address and show collection dates
 	log.Printf("selecting address: %s", addressCode)
 	err = chromedp.Run(taskCtx,
-		chromedp.WaitVisible(`#edit-address-options-csv`, chromedp.ByQuery),
-		chromedp.SetValue(`#edit-address-options-csv`, addressCode, chromedp.ByQuery),
+		chromedp.WaitVisible(`#edit-address-options`, chromedp.ByQuery),
+		chromedp.SetValue(`#edit-address-options`, addressCode, chromedp.ByQuery),
 		chromedp.Sleep(300*time.Millisecond),
-		chromedp.Click(`#edit-show-collection-dates-csv`, chromedp.ByQuery),
+		chromedp.Click(`#edit-show-collection-dates`, chromedp.ByQuery),
 		chromedp.Sleep(5*time.Second),
 	)
 	if err != nil {
