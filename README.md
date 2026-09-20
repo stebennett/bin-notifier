@@ -18,7 +18,7 @@ A Go application that scrapes bin collection schedules from council websites and
 
 ## Prerequisites
 
-- Go 1.26 or later
+- Go 1.27 or later
 - Google Chrome or Chromium (for headless scraping)
 - Twilio account with SMS capabilities
 

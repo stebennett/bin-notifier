@@ -6,7 +6,7 @@
 
 **Architecture:** Replace go-flags CLI parsing with YAML config file + minimal flag parsing. Refactor the scraper package into an interface with a registry of council-specific implementations. Notifier loops over locations, sending one SMS per location, continuing on partial failures.
 
-**Tech Stack:** Go 1.26, gopkg.in/yaml.v3 (already indirect dep), chromedp, twilio-go, testify
+**Tech Stack:** Go 1.27, gopkg.in/yaml.v3 (already indirect dep), chromedp, twilio-go, testify
 
 ---
 
@@ -1388,7 +1388,7 @@ No test needed — this is a configuration change. Update the Dockerfile to remo
 
 ```dockerfile
 # Build stage
-FROM golang:1.26-alpine AS builder
+FROM golang:1.27-alpine AS builder
 
 WORKDIR /app
 
