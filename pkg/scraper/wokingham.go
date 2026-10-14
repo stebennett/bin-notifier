@@ -84,26 +84,26 @@ func (s *WokinghamScraper) ScrapeBinTimes(postCode string, addressCode string) (
 	log.Printf("navigating to wokingham waste collection page")
 
 	// Step 1: Navigate and accept cookies
-	err = chromedp.Run(taskCtx,
+	err = chromedp.Do(taskCtx,
 		chromedp.Navigate("https://www.wokingham.gov.uk/rubbish-and-recycling/waste-collection/find-your-bin-collection-day"),
-		chromedp.WaitVisible(`#edit-postcode-search`, chromedp.ByQuery),
+		chromedp.WaitVisible(chromedp.CSS(`#edit-postcode-search`)),
 	)
 	if err != nil {
 		return []BinTime{}, err
 	}
 
 	// Accept cookies (ignore error if no banner)
-	chromedp.Run(taskCtx,
-		chromedp.Click(`.agree-button`, chromedp.ByQuery),
+	_ = chromedp.Do(taskCtx,
+		chromedp.Click(chromedp.CSS(`.agree-button`)),
 		chromedp.Sleep(500*time.Millisecond),
 	)
 
 	// Step 2: Enter postcode and submit
 	log.Printf("entering postcode: %s", postCode)
-	err = chromedp.Run(taskCtx,
-		chromedp.SetValue(`#edit-postcode-search`, postCode, chromedp.ByQuery),
+	err = chromedp.Do(taskCtx,
+		chromedp.SetValue(chromedp.CSS(`#edit-postcode-search`), postCode),
 		chromedp.Sleep(300*time.Millisecond),
-		chromedp.Click(`#edit-find-address`, chromedp.ByQuery),
+		chromedp.Click(chromedp.CSS(`#edit-find-address`)),
 		chromedp.Sleep(3*time.Second),
 	)
 	if err != nil {
@@ -112,11 +112,11 @@ func (s *WokinghamScraper) ScrapeBinTimes(postCode string, addressCode string) (
 
 	// Step 3: Select address and show collection dates
 	log.Printf("selecting address: %s", addressCode)
-	err = chromedp.Run(taskCtx,
-		chromedp.WaitVisible(`#edit-address-options`, chromedp.ByQuery),
-		chromedp.SetValue(`#edit-address-options`, addressCode, chromedp.ByQuery),
+	err = chromedp.Do(taskCtx,
+		chromedp.WaitVisible(chromedp.CSS(`#edit-address-options`)),
+		chromedp.SetValue(chromedp.CSS(`#edit-address-options`), addressCode),
 		chromedp.Sleep(300*time.Millisecond),
-		chromedp.Click(`#edit-show-collection-dates`, chromedp.ByQuery),
+		chromedp.Click(chromedp.CSS(`#edit-show-collection-dates`)),
 		chromedp.Sleep(5*time.Second),
 	)
 	if err != nil {
@@ -125,10 +125,13 @@ func (s *WokinghamScraper) ScrapeBinTimes(postCode string, addressCode string) (
 
 	// Step 4: Wait for results and extract card data
 	log.Printf("extracting collection dates")
-	var cardCount int
-	err = chromedp.Run(taskCtx,
-		chromedp.WaitVisible(`.cards-list`, chromedp.ByQuery),
-		chromedp.Evaluate(`document.querySelectorAll('.card--waste').length`, &cardCount),
+	err = chromedp.Do(taskCtx, chromedp.WaitVisible(chromedp.CSS(`.cards-list`)))
+	if err != nil {
+		return []BinTime{}, err
+	}
+
+	cardCount, err := chromedp.Run(taskCtx,
+		chromedp.Evaluate[int](`document.querySelectorAll('.card--waste').length`),
 	)
 	if err != nil {
 		return []BinTime{}, err
@@ -139,10 +142,15 @@ func (s *WokinghamScraper) ScrapeBinTimes(postCode string, addressCode string) (
 	}
 
 	// Extract headings and dates from each card
-	var headings, dates []string
-	err = chromedp.Run(taskCtx,
-		chromedp.Evaluate(`Array.from(document.querySelectorAll('.card--waste h3')).map(h => h.textContent.trim())`, &headings),
-		chromedp.Evaluate(`Array.from(document.querySelectorAll('.card--waste .card__date')).map(d => d.textContent.trim())`, &dates),
+	headings, err := chromedp.Run(taskCtx,
+		chromedp.Evaluate[[]string](`Array.from(document.querySelectorAll('.card--waste h3')).map(h => h.textContent.trim())`),
+	)
+	if err != nil {
+		return []BinTime{}, err
+	}
+
+	dates, err := chromedp.Run(taskCtx,
+		chromedp.Evaluate[[]string](`Array.from(document.querySelectorAll('.card--waste .card__date')).map(d => d.textContent.trim())`),
 	)
 	if err != nil {
 		return []BinTime{}, err

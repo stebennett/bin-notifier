@@ -3,6 +3,7 @@ package scraper
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log"
 	"os"
 	"regexp"
@@ -54,9 +55,7 @@ func (s *BracknellScraper) ScrapeBinTimes(postCode string, addressCode string) (
 	defer cancel()
 
 	log.Printf("running task")
-	collectionTimes := make([]string, 4)
-
-	err = chromedp.Run(taskCtx,
+	err = chromedp.Do(taskCtx,
 		chromedp.Navigate("https://selfservice.mybfc.bracknell-forest.gov.uk/w/webpage/waste-collection-days"),
 
 		chromedp.WaitVisible(`//a[text()="Accept all cookies"]`),
@@ -72,18 +71,21 @@ func (s *BracknellScraper) ScrapeBinTimes(postCode string, addressCode string) (
 		chromedp.WaitVisible(`//select`),
 		chromedp.SetValue(`//select`, addressCode),
 		chromedp.Sleep(2*time.Second),
-		chromedp.EvaluateAsDevTools(`document.querySelector("select").dispatchEvent(new Event("change"))`, nil),
+		chromedp.EvaluateAsDevTools[chromedp.Void](`document.querySelector("select").dispatchEvent(new Event("change"))`),
 
 		chromedp.WaitVisible(`//h2[@class="collectionHeading"]`),
-
-		chromedp.Text(`//table[@class="bin-table"]/tr[2]/table/table[1]/tr/td[2]`, &collectionTimes[0], chromedp.NodeVisible, chromedp.BySearch),
-		chromedp.Text(`//table[@class="bin-table"]/tr[2]/table/table[2]/tr/td[2]`, &collectionTimes[1], chromedp.NodeVisible, chromedp.BySearch),
-		chromedp.Text(`//table[@class="bin-table"]/tr[2]/table/table[3]/tr/td[2]`, &collectionTimes[2], chromedp.NodeVisible, chromedp.BySearch),
-		chromedp.Text(`//table[@class="bin-table"]/tr[2]/table/table[4]/tr/td[2]`, &collectionTimes[3], chromedp.NodeVisible, chromedp.BySearch),
 	)
-
 	if err != nil {
 		return []BinTime{}, err
+	}
+
+	collectionTimes := make([]string, 4)
+	for i := range collectionTimes {
+		sel := fmt.Sprintf(`//table[@class="bin-table"]/tr[2]/table/table[%d]/tr/td[2]`, i+1)
+		collectionTimes[i], err = chromedp.Run(taskCtx, chromedp.Text(sel, chromedp.NodeVisible))
+		if err != nil {
+			return []BinTime{}, err
+		}
 	}
 
 	log.Printf("bin times collected. parsing to extract.")
