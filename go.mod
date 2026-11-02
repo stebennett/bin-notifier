@@ -4,7 +4,7 @@ go 1.27
 
 require (
 	github.com/chromedp/chromedp v0.21.0
-	github.com/mark3labs/mcp-go v1.3.0
+	github.com/mark3labs/mcp-go v1.4.0
 	github.com/stretchr/testify v1.12.1
 	github.com/twilio/twilio-go v1.32.0
 	gopkg.in/yaml.v3 v3.0.1
